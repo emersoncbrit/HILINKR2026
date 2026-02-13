@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
+import { getUserIdByUsername } from '@/hooks/use-username';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
@@ -33,7 +34,7 @@ interface CampaignData {
 }
 
 const MiniSite = () => {
-  const { slug } = useParams<{ slug: string }>();
+  const { slug, username, campaignSlug } = useParams<{ slug?: string; username?: string; campaignSlug?: string }>();
   const { toast } = useToast();
   const [campaign, setCampaign] = useState<CampaignData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -41,22 +42,29 @@ const MiniSite = () => {
   const [email, setEmail] = useState('');
   const [submittingEmail, setSubmittingEmail] = useState(false);
 
+  const effectiveSlug = campaignSlug || slug;
+
   useEffect(() => {
     const fetchCampaign = async () => {
-      if (!slug) return;
-      const { data, error } = await supabase
+      if (!effectiveSlug) return;
+      let query = supabase
         .from('campaigns')
         .select('id, product_id, headline, subheadline, benefits, cta_text, urgency_text, social_proof_text, status, user_id, logo_url, image_url, description, button_color, installment_text, reviews, custom_faqs, newsletter_enabled, products(affiliate_link, name, image_url, price)')
-        .eq('slug', slug)
-        .eq('status', 'active')
-        .maybeSingle();
+        .eq('slug', effectiveSlug)
+        .eq('status', 'active');
 
+      if (username) {
+        const userId = await getUserIdByUsername(username);
+        if (!userId) { setNotFound(true); setLoading(false); return; }
+        query = query.eq('user_id', userId);
+      }
+      const { data, error } = await query.maybeSingle();
       if (error || !data) { setNotFound(true); }
       else { setCampaign(data as unknown as CampaignData); }
       setLoading(false);
     };
     fetchCampaign();
-  }, [slug]);
+  }, [effectiveSlug, username]);
 
   const handleClick = async () => {
     if (!campaign || !campaign.products) return;
@@ -108,153 +116,151 @@ const MiniSite = () => {
   const faqs = (campaign.custom_faqs as FAQItem[]) || [];
 
   return (
-    <div className="min-h-screen bg-white text-gray-900">
-      {/* Urgency Banner */}
+    <div className="min-h-screen bg-gray-50 text-gray-900">
+      {/* Barra de urgência */}
       {campaign.urgency_text && (
-        <div className="text-white text-center py-2.5 text-sm font-medium tracking-wide" style={{ backgroundColor: btnColor }}>
+        <div className="text-white text-center py-3 text-sm font-semibold tracking-wide" style={{ backgroundColor: btnColor }}>
           {campaign.urgency_text}
         </div>
       )}
 
-      {/* Logo */}
-      {campaign.logo_url && (
-        <div className="flex justify-center py-4 border-b border-gray-100">
-          <img src={campaign.logo_url} alt="Logo" className="h-10 object-contain" />
-        </div>
-      )}
-
-      {/* Main Product Section */}
-      <div className="max-w-5xl mx-auto px-4 py-8 md:py-14">
-        <div className={`grid gap-8 ${hasImage ? 'md:grid-cols-2' : 'md:grid-cols-1 max-w-2xl mx-auto'}`}>
-          {/* Product Image */}
-          {hasImage && (
-            <div className="flex items-start justify-center">
-              <img
-                src={displayImage!}
-                alt={product?.name || 'Product'}
-                className="rounded-xl object-cover bg-gray-50"
-                style={{ width: 500, height: 500 }}
-                loading="eager"
-              />
-            </div>
+      {/* Header com logo */}
+      <header className="bg-white border-b border-gray-100 shadow-sm">
+        <div className="max-w-5xl mx-auto px-4 py-4 flex justify-center">
+          {campaign.logo_url ? (
+            <img src={campaign.logo_url} alt="Logo" className="h-10 md:h-12 object-contain" />
+          ) : (
+            <span className="text-lg font-bold text-gray-700">{product?.name || 'Oferta'}</span>
           )}
+        </div>
+      </header>
 
-          {/* Product Info */}
-          <div className="flex flex-col justify-center space-y-4">
-            {campaign.social_proof_text && (
-              <div className="flex items-center gap-1.5 text-sm">
-                <div className="flex text-yellow-500">
-                  {[...Array(5)].map((_, i) => <Star key={i} className="h-4 w-4 fill-current" />)}
+      {/* Hero / Produto principal */}
+      <section className="bg-white shadow-sm">
+        <div className="max-w-5xl mx-auto px-4 py-10 md:py-16">
+          <div className={`grid gap-10 md:gap-14 ${hasImage ? 'md:grid-cols-2' : 'md:grid-cols-1 max-w-2xl mx-auto'} items-center`}>
+            {hasImage && (
+              <div className="relative flex justify-center">
+                <div className="rounded-2xl overflow-hidden shadow-xl ring-1 ring-black/5 bg-gray-50">
+                  <img
+                    src={displayImage!}
+                    alt={product?.name || 'Produto'}
+                    className="w-full aspect-square object-cover max-w-md"
+                    loading="eager"
+                  />
                 </div>
-                <span className="text-gray-500">{campaign.social_proof_text}</span>
               </div>
             )}
-
-            <h1 className="text-2xl md:text-3xl font-bold leading-tight">
-              {campaign.headline || product?.name || 'Produto'}
-            </h1>
-
-            {campaign.subheadline && (
-              <p className="text-gray-600 text-base leading-relaxed">{campaign.subheadline}</p>
-            )}
-
-            {/* Price & Installments */}
-            {price && (
-              <div className="space-y-1">
-                <p className="text-3xl font-bold">
-                  R$ {price.toFixed(2).replace('.', ',')}
-                </p>
-                {campaign.installment_text && (
-                  <p className="text-sm text-gray-500">{campaign.installment_text}</p>
-                )}
+            <div className="flex flex-col justify-center space-y-5">
+              {campaign.social_proof_text && (
+                <div className="flex items-center gap-2 text-sm">
+                  <div className="flex text-amber-500">
+                    {[...Array(5)].map((_, i) => <Star key={i} className="h-4 w-4 fill-current" />)}
+                  </div>
+                  <span className="text-gray-500 font-medium">{campaign.social_proof_text}</span>
+                </div>
+              )}
+              <h1 className="text-3xl md:text-4xl font-extrabold leading-tight tracking-tight text-gray-900">
+                {campaign.headline || product?.name || 'Produto'}
+              </h1>
+              {campaign.subheadline && (
+                <p className="text-lg text-gray-600 leading-relaxed">{campaign.subheadline}</p>
+              )}
+              {price != null && price > 0 && (
+                <div className="space-y-0.5">
+                  <p className="text-4xl font-bold text-gray-900">
+                    R$ {price.toFixed(2).replace('.', ',')}
+                  </p>
+                  {campaign.installment_text && (
+                    <p className="text-base text-gray-500">{campaign.installment_text}</p>
+                  )}
+                </div>
+              )}
+              <button
+                onClick={handleClick}
+                className="w-full text-white text-lg font-bold py-5 px-8 rounded-xl flex items-center justify-center gap-2 transition-all hover:brightness-110 active:scale-[0.99] shadow-lg"
+                style={{ backgroundColor: btnColor }}
+              >
+                {campaign.cta_text || 'Comprar Agora'}
+                <ArrowRight className="h-5 w-5" />
+              </button>
+              <div className="flex items-center justify-center gap-8 pt-2 text-sm text-gray-500">
+                <span className="flex items-center gap-1.5"><Shield className="h-5 w-5 text-gray-400" /> Compra segura</span>
+                <span className="flex items-center gap-1.5"><Truck className="h-5 w-5 text-gray-400" /> Entrega garantida</span>
               </div>
-            )}
-
-            {/* CTA Button */}
-            <button
-              onClick={handleClick}
-              className="w-full text-white text-base font-semibold py-4 px-8 rounded-xl flex items-center justify-center gap-2 transition-all hover:brightness-110 active:scale-[0.98]"
-              style={{ backgroundColor: btnColor }}
-            >
-              {campaign.cta_text || 'Comprar Agora'}
-              <ArrowRight className="h-5 w-5" />
-            </button>
-
-            {/* Trust Badges */}
-            <div className="flex items-center justify-center gap-6 pt-1 text-xs text-gray-400">
-              <span className="flex items-center gap-1"><Shield className="h-4 w-4" />Compra Segura</span>
-              <span className="flex items-center gap-1"><Truck className="h-4 w-4" />Entrega Garantida</span>
             </div>
           </div>
         </div>
-      </div>
+      </section>
 
-      {/* Description Section */}
+      {/* Descrição */}
       {campaign.description && (
-        <div className="bg-gray-50 py-10 md:py-14">
+        <section className="py-12 md:py-16">
           <div className="max-w-3xl mx-auto px-4">
-            <h2 className="text-xl font-bold mb-4">Descrição</h2>
-            <div className="text-gray-700 leading-relaxed whitespace-pre-line">{campaign.description}</div>
+            <h2 className="text-2xl font-bold text-gray-900 mb-6">Sobre o produto</h2>
+            <div className="text-gray-700 leading-relaxed whitespace-pre-line text-base">{campaign.description}</div>
           </div>
-        </div>
+        </section>
       )}
 
-      {/* Benefits Section */}
+      {/* Benefícios */}
       {campaign.benefits && campaign.benefits.length > 0 && (
-        <div className="py-10 md:py-14">
-          <div className="max-w-3xl mx-auto px-4 space-y-6">
-            <h2 className="text-xl md:text-2xl font-bold text-center">
+        <section className="bg-white py-12 md:py-16">
+          <div className="max-w-3xl mx-auto px-4">
+            <h2 className="text-2xl md:text-3xl font-bold text-center text-gray-900 mb-8">
               Por que escolher {product?.name || 'este produto'}?
             </h2>
-            <div className="space-y-4">
+            <div className="space-y-5">
               {campaign.benefits.map((b, i) => (
-                <div key={i} className="flex items-start gap-3">
-                  <CheckCircle2 className="h-5 w-5 mt-0.5 shrink-0" style={{ color: btnColor }} />
+                <div key={i} className="flex items-start gap-4 p-4 rounded-xl bg-gray-50">
+                  <CheckCircle2 className="h-6 w-6 mt-0.5 shrink-0" style={{ color: btnColor }} />
                   <span className="text-gray-700 leading-relaxed">{b}</span>
                 </div>
               ))}
             </div>
           </div>
-        </div>
+        </section>
       )}
 
-      {/* Reviews Section */}
+      {/* Avaliações */}
       {reviews.length > 0 && (
-        <div className="bg-gray-50 py-10 md:py-14">
-          <div className="max-w-3xl mx-auto px-4 space-y-6">
-            <h2 className="text-xl md:text-2xl font-bold text-center">Avaliações de Clientes</h2>
-            <div className="grid gap-4 md:grid-cols-2">
+        <section className="py-12 md:py-16">
+          <div className="max-w-4xl mx-auto px-4">
+            <h2 className="text-2xl md:text-3xl font-bold text-center text-gray-900 mb-8">Avaliações de clientes</h2>
+            <div className="grid gap-5 md:grid-cols-2">
               {reviews.map((r, i) => (
-                <div key={i} className="bg-white rounded-xl p-5 shadow-sm border border-gray-100">
-                  <div className="flex items-center gap-1 mb-2">
+                <div key={i} className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+                  <div className="flex items-center gap-1 mb-3">
                     {[...Array(5)].map((_, si) => (
-                      <Star key={si} className={`h-4 w-4 ${si < r.rating ? 'text-yellow-500 fill-current' : 'text-gray-200'}`} />
+                      <Star key={si} className={`h-4 w-4 ${si < r.rating ? 'text-amber-500 fill-current' : 'text-gray-200'}`} />
                     ))}
                   </div>
-                  <p className="text-gray-700 text-sm leading-relaxed mb-2">"{r.text}"</p>
-                  <p className="text-xs font-semibold text-gray-500">— {r.name}</p>
+                  <p className="text-gray-700 leading-relaxed mb-3">"{r.text}"</p>
+                  <p className="text-sm font-semibold text-gray-500">— {r.name}</p>
                 </div>
               ))}
             </div>
           </div>
-        </div>
+        </section>
       )}
 
-      {/* FAQ Section */}
+      {/* FAQ */}
       {faqs.length > 0 && (
-        <div className="max-w-3xl mx-auto px-4 py-10 md:py-14">
-          <h2 className="text-xl md:text-2xl font-bold text-center mb-6">Perguntas Frequentes</h2>
-          <Accordion type="single" collapsible className="space-y-2">
-            {faqs.map((f, i) => (
-              <AccordionItem key={i} value={`faq-${i}`} className="border rounded-lg px-4">
-                <AccordionTrigger className="text-sm font-medium hover:no-underline" style={{ color: btnColor }}>
-                  {f.question}
-                </AccordionTrigger>
-                <AccordionContent className="text-sm text-gray-600">{f.answer}</AccordionContent>
-              </AccordionItem>
-            ))}
-          </Accordion>
-        </div>
+        <section className="bg-white py-12 md:py-16">
+          <div className="max-w-3xl mx-auto px-4">
+            <h2 className="text-2xl md:text-3xl font-bold text-center text-gray-900 mb-8">Perguntas frequentes</h2>
+            <Accordion type="single" collapsible className="space-y-3">
+              {faqs.map((f, i) => (
+                <AccordionItem key={i} value={`faq-${i}`} className="border border-gray-200 rounded-xl px-5 bg-gray-50/50">
+                  <AccordionTrigger className="text-base font-semibold hover:no-underline py-5" style={{ color: btnColor }}>
+                    {f.question}
+                  </AccordionTrigger>
+                  <AccordionContent className="text-gray-600 pb-5">{f.answer}</AccordionContent>
+                </AccordionItem>
+              ))}
+            </Accordion>
+          </div>
+        </section>
       )}
 
       {/* Newsletter Section */}
@@ -285,21 +291,35 @@ const MiniSite = () => {
         </div>
       )}
 
-      {/* Bottom CTA */}
-      <div className="bg-gray-50 py-10 text-center px-4">
+      {/* CTA final */}
+      <section className="bg-gray-50 py-12 text-center px-4">
         <button
           onClick={handleClick}
-          className="text-white text-base font-semibold px-10 py-4 rounded-xl inline-flex items-center gap-2 transition-all hover:brightness-110 active:scale-[0.98]"
+          className="text-white text-lg font-bold px-12 py-5 rounded-xl inline-flex items-center gap-2 transition-all hover:brightness-110 active:scale-[0.99] shadow-lg"
           style={{ backgroundColor: btnColor }}
         >
           {campaign.cta_text || 'Comprar Agora'}
-          <ArrowRight className="ml-1 h-5 w-5" />
+          <ArrowRight className="h-5 w-5" />
         </button>
-        <p className="text-xs text-gray-400 mt-3">🔒 Pagamento 100% seguro</p>
-      </div>
+        <p className="text-sm text-gray-500 mt-4 flex items-center justify-center gap-1.5">
+          <Shield className="h-4 w-4" /> Pagamento 100% seguro
+        </p>
+      </section>
 
-      {/* Footer */}
-      <footer className="border-t border-gray-100 py-6 text-center">
+      {/* CTA fixo mobile */}
+      <div className="md:hidden fixed bottom-0 left-0 right-0 p-4 bg-white/95 backdrop-blur border-t border-gray-100 shadow-lg safe-area-pb">
+        <button
+          onClick={handleClick}
+          className="w-full text-white text-base font-bold py-4 rounded-xl flex items-center justify-center gap-2"
+          style={{ backgroundColor: btnColor }}
+        >
+          {campaign.cta_text || 'Comprar Agora'}
+          <ArrowRight className="h-5 w-5" />
+        </button>
+      </div>
+      <div className="md:hidden h-20" />
+
+      <footer className="border-t border-gray-200 bg-white py-6 text-center">
         <p className="text-xs text-gray-400">© {new Date().getFullYear()} Todos os direitos reservados.</p>
       </footer>
     </div>

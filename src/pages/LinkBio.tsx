@@ -7,6 +7,8 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
+import { useUsername } from '@/hooks/use-username';
+import { BASE_URL } from '@/lib/reserved-usernames';
 import { Copy, ExternalLink, Plus, Trash2, GripVertical, Save, Eye, Upload, Instagram, Youtube, Twitter, Facebook, Music2 } from 'lucide-react';
 
 interface LinkItem {
@@ -174,7 +176,9 @@ const LinkBio = () => {
     setSaving(false);
   };
 
-  const publicUrl = `${window.location.origin}/bio/${config.slug}`;
+  const { username } = useUsername();
+  const origin = typeof window !== 'undefined' ? window.location.origin : BASE_URL;
+  const publicUrl = username ? `${origin}/${username}` : `${origin}/bio/${config.slug}`;
 
   if (loading) {
     return <div className="flex items-center justify-center h-64"><div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" /></div>;
@@ -203,11 +207,14 @@ const LinkBio = () => {
       {/* Link + Copy */}
       {config.id && (
         <Card className="glass-card">
-          <CardContent className="p-4 flex items-center justify-between gap-4">
-            <div>
-              <p className="text-sm font-medium">Link Bio: <a href={publicUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">{publicUrl} <ExternalLink className="inline h-3 w-3" /></a></p>
+          <CardContent className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="min-w-0">
+              <p className="text-sm font-medium">Link Bio: <a href={publicUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline break-all">{publicUrl} <ExternalLink className="inline h-3 w-3" /></a></p>
+              {!username && (
+                <p className="text-xs text-muted-foreground mt-1">Defina seu username em Minha Conta para usar o link hilinkr.com/seu-usuario</p>
+              )}
             </div>
-            <Button size="sm" variant="secondary" onClick={() => { navigator.clipboard.writeText(publicUrl); toast({ title: 'Link copiado!' }); }}>
+            <Button size="sm" variant="secondary" onClick={() => { navigator.clipboard.writeText(publicUrl); toast({ title: 'Link copiado!' }); }} className="shrink-0">
               <Copy className="h-4 w-4 mr-1" />Copiar
             </Button>
           </CardContent>
@@ -345,72 +352,72 @@ const LinkBio = () => {
         </div>
 
         {/* Right: Preview - iPhone Mockup */}
-        <div className="lg:sticky lg:top-20">
-          <div className="flex justify-center">
-            {/* iPhone Frame */}
-            <div className="relative mx-auto" style={{ width: 320 }}>
-              {/* Phone outer shell */}
-              <div className="rounded-[3rem] border-[6px] border-[#e8efe8] bg-[#e8efe8] shadow-xl overflow-hidden">
-                {/* Notch / Dynamic Island */}
-                <div className="relative bg-[#e8efe8] flex justify-center pt-2 pb-1">
-                  <div className="w-[90px] h-[25px] bg-[#e8efe8] rounded-full" />
+        <div className="lg:sticky lg:top-20 flex justify-center">
+          <div className="relative">
+            {/* Sombras e reflexo para profundidade */}
+            <div className="absolute -inset-4 bg-gradient-to-b from-gray-200/40 to-transparent rounded-[4rem] blur-xl scale-95" />
+            <div className="relative mx-auto" style={{ width: 300 }}>
+              {/* Moldura estilo iPhone - borda escura e elegante */}
+              <div className="rounded-[2.75rem] border-[10px] border-gray-800 shadow-2xl overflow-hidden bg-gray-800">
+                {/* Dynamic Island */}
+                <div className="relative bg-gray-900 flex justify-center pt-3 pb-2 z-10">
+                  <div className="w-24 h-7 bg-black rounded-full" />
                 </div>
 
-                {/* Screen content */}
-                <div className="bg-white overflow-y-auto" style={{ height: 580 }}>
+                {/* Tela */}
+                <div className="bg-white overflow-hidden rounded-b-[2rem]" style={{ height: 560 }}>
                   <div
-                    className="min-h-full p-6 flex flex-col items-center"
+                    className="min-h-full p-5 flex flex-col items-center overflow-y-auto"
                     style={{ background: config.theme_colors.background, color: config.theme_colors.text }}
                   >
-                    {/* Avatar */}
+                    {/* Avatar com anel */}
                     {config.avatar_url ? (
-                      <img src={config.avatar_url} alt="" className="h-20 w-20 rounded-full object-cover border-2 mb-4" style={{ borderColor: config.theme_colors.primary }} />
+                      <img src={config.avatar_url} alt="" className="h-20 w-20 rounded-full object-cover border-[3px] mb-4 shadow-lg" style={{ borderColor: config.theme_colors.primary }} />
                     ) : (
-                      <div className="h-20 w-20 rounded-full bg-gray-300 mb-4 flex items-center justify-center">
-                        <Upload className="h-6 w-6 text-gray-500" />
+                      <div className="h-20 w-20 rounded-full bg-gray-500/30 mb-4 flex items-center justify-center border-2 border-dashed" style={{ borderColor: config.theme_colors.primary }}>
+                        <Upload className="h-8 w-8 opacity-50" />
                       </div>
                     )}
 
-                    {/* Title + Bio */}
                     <h2 className="font-bold text-lg text-center" style={{ color: config.theme_colors.text }}>
                       {config.title || 'Seu nome'}
                     </h2>
-                    {config.bio && <p className="text-sm text-center mt-1 opacity-80">{config.bio}</p>}
+                    {config.bio && <p className="text-sm text-center mt-1 opacity-90 max-w-[260px]">{config.bio}</p>}
 
                     {/* Links */}
-                    <div className="w-full mt-6 space-y-3">
-                      {config.links.filter(l => l.title && l.url).map(link => (
+                    <div className="w-full mt-5 space-y-2.5">
+                      {config.links.filter((l: { title: string; url: string }) => l.title && l.url).map((link: { id: string; title: string }) => (
                         <div
                           key={link.id}
-                          className="w-full py-3 px-4 rounded-xl text-center font-medium text-sm cursor-pointer hover:scale-[1.02] transition-transform"
+                          className="w-full py-3 px-4 rounded-xl text-center font-medium text-sm transition-transform"
                           style={{
                             background: config.theme_colors.cardBg,
                             color: config.theme_colors.text,
-                            border: `1px solid ${config.theme_colors.primary}40`,
+                            border: `2px solid ${config.theme_colors.primary}50`,
+                            boxShadow: `0 2px 8px ${config.theme_colors.primary}20`,
                           }}
                         >
                           {link.title}
                         </div>
                       ))}
-                      {config.links.filter(l => l.title && l.url).length === 0 && (
-                        <p className="text-center text-sm opacity-50">Seus links aparecerão aqui</p>
+                      {config.links.filter((l: { title: string; url: string }) => l.title && l.url).length === 0 && (
+                        <p className="text-center text-sm opacity-50 py-4">Seus links aparecerão aqui</p>
                       )}
                     </div>
 
-                    {/* Social icons */}
-                    <div className="flex gap-4 mt-8">
-                      {config.social_links.instagram && <Instagram className="h-5 w-5 opacity-70" />}
-                      {config.social_links.tiktok && <Music2 className="h-5 w-5 opacity-70" />}
-                      {config.social_links.youtube && <Youtube className="h-5 w-5 opacity-70" />}
-                      {config.social_links.twitter && <Twitter className="h-5 w-5 opacity-70" />}
-                      {config.social_links.facebook && <Facebook className="h-5 w-5 opacity-70" />}
+                    <div className="flex gap-4 mt-6">
+                      {config.social_links.instagram && <Instagram className="h-5 w-5 opacity-80" style={{ color: config.theme_colors.primary }} />}
+                      {config.social_links.tiktok && <Music2 className="h-5 w-5 opacity-80" style={{ color: config.theme_colors.primary }} />}
+                      {config.social_links.youtube && <Youtube className="h-5 w-5 opacity-80" style={{ color: config.theme_colors.primary }} />}
+                      {config.social_links.twitter && <Twitter className="h-5 w-5 opacity-80" style={{ color: config.theme_colors.primary }} />}
+                      {config.social_links.facebook && <Facebook className="h-5 w-5 opacity-80" style={{ color: config.theme_colors.primary }} />}
                     </div>
                   </div>
                 </div>
 
-                {/* Bottom bar */}
-                <div className="bg-[#e8efe8] flex justify-center py-2">
-                  <div className="w-[100px] h-[4px] bg-white/50 rounded-full" />
+                {/* Barra inferior do iPhone */}
+                <div className="bg-gray-900 flex justify-center py-2.5">
+                  <div className="w-28 h-1.5 bg-gray-600 rounded-full" />
                 </div>
               </div>
             </div>

@@ -1,4 +1,5 @@
-import { LayoutDashboard, Package, Megaphone, Link2, Sparkles, LogOut, GraduationCap, ShoppingBag, Users, Layout, LinkIcon, Mail, User, Bolt, Shield } from 'lucide-react';
+import { LayoutDashboard, Package, Megaphone, Link2, Sparkles, LogOut, GraduationCap, ShoppingBag, Users, Layout, LinkIcon, Mail, User, Shield } from 'lucide-react';
+import { useSiteDesign } from '@/lib/site-design';
 import { NavLink } from '@/components/NavLink';
 import { useAuth } from '@/lib/auth';
 import { useAdmin } from '@/hooks/use-admin';
@@ -38,6 +39,8 @@ const extraNav = [
 export function AppSidebar() {
   const { signOut } = useAuth();
   const { isAdmin } = useAdmin();
+  const { logoUrl, siteName, siteNameFallback } = useSiteDesign();
+  const logoOnly = !siteName.trim();
 
   const linkClass = "flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground transition-colors";
   const activeClass = "bg-primary text-primary-foreground font-medium hover:bg-primary hover:text-primary-foreground";
@@ -45,8 +48,12 @@ export function AppSidebar() {
   return (
     <Sidebar className="border-r border-sidebar-border bg-sidebar">
       <div className="flex items-center gap-2.5 px-5 py-5">
-        <Bolt className="h-5 w-5 text-primary" />
-        <span className="text-base font-bold tracking-tight text-foreground">Hilinkr</span>
+        <img
+          src={logoUrl}
+          alt={siteNameFallback}
+          className={logoOnly ? 'h-11 w-11 object-contain' : 'h-8 w-8 object-contain'}
+        />
+        {siteName ? <span className="text-base font-bold tracking-tight text-foreground">{siteName}</span> : null}
       </div>
 
       <SidebarContent>

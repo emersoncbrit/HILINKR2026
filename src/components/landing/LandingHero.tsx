@@ -1,9 +1,11 @@
 import { ArrowRight, Zap, Link2, FileText, MousePointerClick } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
+import { useSiteDesign } from '@/lib/site-design';
 
 const LandingHero = () => {
   const navigate = useNavigate();
+  const { siteNameFallback } = useSiteDesign();
   const goToAuth = () => navigate('/auth');
 
   return (
@@ -44,7 +46,7 @@ const LandingHero = () => {
             <div className="absolute -inset-8 glow-blue opacity-40 rounded-3xl" />
             <div className="relative bg-card border border-border rounded-2xl shadow-float p-6 space-y-4">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-semibold">Painel Hilinkr</span>
+                <span className="text-sm font-semibold">Painel {siteNameFallback}</span>
                 <span className="text-xs text-muted-foreground">Visão geral</span>
               </div>
               <div className="grid grid-cols-3 gap-3">

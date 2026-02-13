@@ -1,6 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
+import { getUserIdByUsername } from '@/hooks/use-username';
 import { Search, ExternalLink, Image, ChevronLeft, ChevronRight } from 'lucide-react';
 import LeadCapturePopup from '@/components/hub/LeadCapturePopup';
 
@@ -54,7 +55,7 @@ const SOCIAL_ICONS: Record<string, string> = {
 const formatBRL = (v: number) => v.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
 const HubPublic = () => {
-  const { slug } = useParams<{ slug: string }>();
+  const { slug, username } = useParams<{ slug: string; username?: string }>();
   const [config, setConfig] = useState<StoreConfig | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
@@ -62,15 +63,17 @@ const HubPublic = () => {
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [showPopup, setShowPopup] = useState(false);
+
   useEffect(() => {
     const fetchStore = async () => {
       if (!slug) return;
-
-      const { data: hub } = await supabase
-        .from('hub_configs')
-        .select('*')
-        .eq('slug', slug)
-        .maybeSingle();
+      let query = supabase.from('hub_configs').select('*').eq('slug', slug);
+      if (username) {
+        const userId = await getUserIdByUsername(username);
+        if (!userId) { setNotFound(true); setLoading(false); return; }
+        query = query.eq('user_id', userId);
+      }
+      const { data: hub } = await query.maybeSingle();
 
       if (!hub) {
         setNotFound(true);
@@ -155,7 +158,7 @@ const HubPublic = () => {
     };
 
     fetchStore();
-  }, [slug]);
+  }, [slug, username]);
 
   if (loading) {
     return (
@@ -233,63 +236,71 @@ const HubPublic = () => {
           onClose={() => setShowPopup(false)}
         />
       )}
-      {/* Header */}
+      {/* Header estilo e-commerce */}
       <header
-        className="sticky top-0 z-50 shadow-md"
+        className="sticky top-0 z-50 shadow-lg"
         style={{ backgroundColor: config.header_color, color: config.header_text_color }}
       >
-        <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            {config.logo_url && (
-              <img src={config.logo_url} alt="Logo" className="h-8 max-w-[120px] object-contain" />
+        <div className="max-w-7xl mx-auto px-4 py-4 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-4">
+            {config.logo_url ? (
+              <img src={config.logo_url} alt="Logo" className="h-10 md:h-11 max-w-[140px] object-contain" />
+            ) : (
+              <span className="text-xl md:text-2xl font-bold tracking-tight">
+                {config.store_name || slug}
+              </span>
             )}
-            <span className="text-lg font-bold uppercase tracking-wide">
-              {config.store_name || slug}
-            </span>
+            {config.logo_url && (
+              <span className="text-xl font-bold tracking-tight hidden sm:block">{config.store_name || slug}</span>
+            )}
           </div>
-          <nav className="hidden md:flex items-center gap-6 text-sm font-medium">
+          <div className="relative w-full sm:max-w-xs">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 h-4 w-4 opacity-70" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Buscar produtos..."
+              className="w-full pl-11 pr-4 py-2.5 rounded-xl text-sm border-0 outline-none placeholder:opacity-70"
+              style={{
+                backgroundColor: `${config.header_text_color}18`,
+                color: config.header_text_color,
+              }}
+            />
+          </div>
+          <nav className="hidden lg:flex items-center gap-1">
             <button
               onClick={() => setSelectedCategory('all')}
-              className="hover:opacity-80 transition-opacity"
-              style={{ color: config.header_text_color, opacity: selectedCategory === 'all' ? 1 : 0.7 }}
+              className="px-4 py-2 rounded-lg text-sm font-medium transition-all"
+              style={{
+                color: config.header_text_color,
+                backgroundColor: selectedCategory === 'all' ? `${config.header_text_color}25` : 'transparent',
+              }}
             >
-              TODOS
+              Todos
             </button>
-            {categories.slice(0, 5).map((cat) => (
+            {categories.slice(0, 6).map((cat) => (
               <button
                 key={cat}
                 onClick={() => setSelectedCategory(cat)}
-                className="hover:opacity-80 transition-opacity uppercase"
-                style={{ color: config.header_text_color, opacity: selectedCategory === cat ? 1 : 0.7 }}
+                className="px-4 py-2 rounded-lg text-sm font-medium transition-all"
+                style={{
+                  color: config.header_text_color,
+                  backgroundColor: selectedCategory === cat ? `${config.header_text_color}25` : 'transparent',
+                }}
               >
                 {cat}
               </button>
             ))}
           </nav>
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 opacity-60" />
-            <input
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder="Buscar..."
-              className="pl-9 pr-3 py-1.5 rounded-full text-sm border-none outline-none"
-              style={{
-                backgroundColor: `${config.header_text_color}20`,
-                color: config.header_text_color,
-              }}
-            />
-          </div>
         </div>
-
-        {/* Mobile categories */}
-        <div className="md:hidden overflow-x-auto px-4 pb-2 flex gap-2">
+        <div className="md:hidden overflow-x-auto px-4 pb-3 flex gap-2 scrollbar-hide">
           <button
             onClick={() => setSelectedCategory('all')}
-            className="text-xs font-medium whitespace-nowrap px-3 py-1 rounded-full"
+            className="shrink-0 text-xs font-medium whitespace-nowrap px-4 py-2 rounded-full"
             style={{
               backgroundColor: selectedCategory === 'all' ? config.header_text_color : 'transparent',
               color: selectedCategory === 'all' ? config.header_color : config.header_text_color,
-              border: `1px solid ${config.header_text_color}40`,
+              border: `1px solid ${config.header_text_color}50`,
             }}
           >
             Todos
@@ -298,11 +309,11 @@ const HubPublic = () => {
             <button
               key={cat}
               onClick={() => setSelectedCategory(cat)}
-              className="text-xs font-medium whitespace-nowrap px-3 py-1 rounded-full"
+              className="shrink-0 text-xs font-medium whitespace-nowrap px-4 py-2 rounded-full"
               style={{
                 backgroundColor: selectedCategory === cat ? config.header_text_color : 'transparent',
                 color: selectedCategory === cat ? config.header_color : config.header_text_color,
-                border: `1px solid ${config.header_text_color}40`,
+                border: `1px solid ${config.header_text_color}50`,
               }}
             >
               {cat}
@@ -316,39 +327,57 @@ const HubPublic = () => {
         <BannerSlider banners={config.banners} />
       )}
 
-      {/* Products */}
-      <main className="flex-1 max-w-7xl mx-auto w-full px-4 py-8">
+      {/* Conteúdo principal - grid de loja */}
+      <main className="flex-1 max-w-7xl mx-auto w-full px-4 py-8 md:py-10">
+        {config.store_description && (
+          <p className="text-center max-w-2xl mx-auto mb-8 text-base opacity-90" style={{ color: templateTextColor }}>
+            {config.store_description}
+          </p>
+        )}
         {filtered.length === 0 ? (
-          <div className="text-center py-20">
-            <p className="text-gray-500 text-lg" style={{ color: config.primary_color }}>
-              Nenhum produto encontrado
-            </p>
+          <div className="text-center py-24 rounded-2xl border border-dashed" style={{ borderColor: `${config.primary_color}40`, color: templateTextColor }}>
+            <Image className="h-14 w-14 mx-auto opacity-40 mb-4" style={{ color: config.primary_color }} />
+            <p className="text-lg font-medium">Nenhum produto encontrado</p>
+            <p className="text-sm opacity-70 mt-1">Tente outra busca ou categoria.</p>
           </div>
         ) : (
-          <div className="space-y-10">
+          <div className="space-y-12">
             {grouped.map(({ category, items }) => (
               <section key={category}>
-                <h2 className="text-xl font-bold mb-4 flex items-center gap-2" style={{ color: '#333' }}>
+                <h2 className="text-xl md:text-2xl font-bold mb-5 flex items-center gap-2" style={{ color: templateTextColor }}>
                   {category}
-                  <span className="text-sm font-normal text-gray-400">({items.length})</span>
+                  <span className="text-sm font-normal opacity-60">({items.length})</span>
                 </h2>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 gap-4 md:gap-6">
                   {items.map((p) => (
-                    <ProductCard key={p.id} product={p} primaryColor={config.primary_color} onClick={() => handleProductClick(p)} />
+                    <ProductCard
+                      key={p.id}
+                      product={p}
+                      config={config}
+                      templateCardBg={templateCardBg}
+                      templateTextColor={templateTextColor}
+                      onClick={() => handleProductClick(p)}
+                    />
                   ))}
                 </div>
               </section>
             ))}
-
             {uncategorized.length > 0 && (
               <section>
-                <h2 className="text-xl font-bold mb-4" style={{ color: '#333' }}>
+                <h2 className="text-xl md:text-2xl font-bold mb-5 flex items-center gap-2" style={{ color: templateTextColor }}>
                   Outros
-                  <span className="text-sm font-normal text-gray-400 ml-2">({uncategorized.length})</span>
+                  <span className="text-sm font-normal opacity-60">({uncategorized.length})</span>
                 </h2>
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 gap-4 md:gap-6">
                   {uncategorized.map((p) => (
-                    <ProductCard key={p.id} product={p} primaryColor={config.primary_color} onClick={() => handleProductClick(p)} />
+                    <ProductCard
+                      key={p.id}
+                      product={p}
+                      config={config}
+                      templateCardBg={templateCardBg}
+                      templateTextColor={templateTextColor}
+                      onClick={() => handleProductClick(p)}
+                    />
                   ))}
                 </div>
               </section>
@@ -358,17 +387,17 @@ const HubPublic = () => {
       </main>
 
       {/* Footer */}
-      <footer className="border-t" style={{ backgroundColor: '#fff', borderColor: '#e5e7eb' }}>
+      <footer className="border-t mt-auto" style={{ backgroundColor: templateCardBg, borderColor: templateBg === '#0f0f0f' || templateBg === '#141414' ? '#333' : '#e5e7eb' }}>
         <div className="max-w-7xl mx-auto px-4 py-8">
           {activeSocials.length > 0 && (
-            <div className="flex justify-center gap-4 mb-6 flex-wrap">
+            <div className="flex justify-center gap-5 mb-6 flex-wrap">
               {activeSocials.map(([key, url]) => (
                 <a
                   key={key}
                   href={url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-2xl hover:scale-110 transition-transform"
+                  className="text-2xl hover:scale-110 transition-transform opacity-80 hover:opacity-100"
                   title={key}
                 >
                   {SOCIAL_ICONS[key] || '🔗'}
@@ -376,10 +405,10 @@ const HubPublic = () => {
               ))}
             </div>
           )}
-          <p className="text-center text-xs text-gray-400">
+          <p className="text-center text-sm opacity-70" style={{ color: templateTextColor }}>
             © {new Date().getFullYear()} {config.store_name || slug}. Todos os direitos reservados.
           </p>
-          <p className="text-center text-xs text-gray-300 mt-1">
+          <p className="text-center text-xs opacity-50 mt-2" style={{ color: templateTextColor }}>
             As marcas registradas são propriedade de seus respectivos donos. Ao comprar através dos links nós podemos receber uma comissão.
           </p>
         </div>
@@ -388,13 +417,26 @@ const HubPublic = () => {
   );
 };
 
-const ProductCard = ({ product, primaryColor, onClick }: { product: Product; primaryColor: string; onClick: () => void }) => (
+const ProductCard = ({
+  product,
+  config,
+  templateCardBg,
+  templateTextColor,
+  onClick,
+}: {
+  product: Product;
+  config: StoreConfig;
+  templateCardBg: string;
+  templateTextColor: string;
+  onClick: () => void;
+}) => (
   <button
     onClick={onClick}
-    className="group bg-white rounded-lg border border-gray-100 overflow-hidden shadow-sm hover:shadow-md transition-all text-left w-full"
+    className="group rounded-2xl overflow-hidden shadow-md hover:shadow-xl transition-all duration-300 text-left w-full border border-transparent hover:border-opacity-20"
+    style={{ backgroundColor: templateCardBg, borderColor: config.primary_color }}
   >
     {product.image_url ? (
-      <div className="aspect-square overflow-hidden bg-gray-50">
+      <div className="aspect-square overflow-hidden bg-black/5">
         <img
           src={product.image_url}
           alt={product.name}
@@ -402,26 +444,28 @@ const ProductCard = ({ product, primaryColor, onClick }: { product: Product; pri
         />
       </div>
     ) : (
-      <div className="aspect-square flex items-center justify-center bg-gray-50">
-        <Image className="h-10 w-10 text-gray-200" />
+      <div className="aspect-square flex items-center justify-center bg-black/5">
+        <Image className="h-12 w-12 opacity-30" style={{ color: templateTextColor }} />
       </div>
     )}
-    <div className="p-3">
-      <h3 className="text-sm font-medium text-gray-800 line-clamp-2 leading-tight mb-1 group-hover:text-blue-600 transition-colors">
+    <div className="p-4">
+      <h3 className="text-sm font-semibold line-clamp-2 leading-tight mb-1.5 group-hover:opacity-90 transition-opacity" style={{ color: templateTextColor }}>
         {product.name}
       </h3>
       {product.platform && (
-        <p className="text-xs text-gray-400 mb-2">{product.platform}</p>
+        <p className="text-xs opacity-60 mb-2" style={{ color: templateTextColor }}>{product.platform}</p>
       )}
-      <div className="flex items-center justify-between">
-        {product.price && product.price > 0 ? (
-          <span className="text-sm font-bold" style={{ color: primaryColor }}>
+      <div className="flex items-center justify-between gap-2">
+        {product.price != null && product.price > 0 ? (
+          <span className="text-base font-bold" style={{ color: config.primary_color }}>
             R$ {formatBRL(product.price)}
           </span>
         ) : (
           <span />
         )}
-        <ExternalLink className="h-3.5 w-3.5 text-gray-300 group-hover:text-gray-500 transition-colors" />
+        <span className="text-xs font-medium opacity-70 flex items-center gap-1" style={{ color: config.primary_color }}>
+          Ver oferta <ExternalLink className="h-3.5 w-3.5" />
+        </span>
       </div>
     </div>
   </button>

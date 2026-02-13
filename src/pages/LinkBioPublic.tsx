@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
+import { getUserIdByUsername } from '@/hooks/use-username';
+import { isReservedUsername } from '@/lib/reserved-usernames';
 import { Instagram, Youtube, Twitter, Facebook, Music2, ExternalLink } from 'lucide-react';
 
 interface LinkItem {
@@ -25,29 +27,42 @@ interface ThemeColors {
 }
 
 const LinkBioPublic = () => {
-  const { slug } = useParams<{ slug: string }>();
+  const { slug, username: usernameParam } = useParams<{ slug?: string; username?: string }>();
   const [config, setConfig] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
 
   useEffect(() => {
-    if (!slug) return;
     const fetch = async () => {
-      const { data, error } = await supabase
-        .from('link_bio_configs')
-        .select('*')
-        .eq('slug', slug)
-        .maybeSingle();
-
-      if (!data || error) {
-        setNotFound(true);
-      } else {
-        setConfig(data);
-      }
+      if (!slug && !usernameParam) { setLoading(false); return; }
+      if (usernameParam) {
+        if (isReservedUsername(usernameParam)) {
+          setNotFound(true);
+          setLoading(false);
+          return;
+        }
+        const userId = await getUserIdByUsername(usernameParam);
+        if (!userId) { setNotFound(true); setLoading(false); return; }
+        const { data, error } = await supabase
+          .from('link_bio_configs')
+          .select('*')
+          .eq('user_id', userId)
+          .maybeSingle();
+        if (!data || error) setNotFound(true);
+        else setConfig(data);
+      } else if (slug) {
+        const { data, error } = await supabase
+          .from('link_bio_configs')
+          .select('*')
+          .eq('slug', slug)
+          .maybeSingle();
+        if (!data || error) setNotFound(true);
+        else setConfig(data);
+      } else return;
       setLoading(false);
     };
     fetch();
-  }, [slug]);
+  }, [slug, usernameParam]);
 
   if (loading) {
     return (
@@ -170,7 +185,7 @@ const LinkBioPublic = () => {
             </div>
           )}
 
-          <p className="text-xs opacity-30 mt-12">Feito com AffiliateOS</p>
+          <p className="text-xs opacity-40 mt-12">Feito com Hilinkr</p>
         </div>
       </div>
     </>

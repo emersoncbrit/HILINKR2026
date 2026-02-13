@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
@@ -11,31 +12,39 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { useToast } from '@/hooks/use-toast';
 import { Plus, DollarSign } from 'lucide-react';
 import { StatCard } from '@/components/StatCard';
+import { PageLoader } from '@/components/PageLoader';
+import { EmptyState } from '@/components/EmptyState';
+import { useDocumentTitle } from '@/hooks/use-document-title';
 
 interface Product { id: string; name: string; }
 interface Sale { id: string; product_id: string; quantity: number; sale_value: number; sale_date: string; products?: { name: string }; }
 
+async function fetchSalesData(userId: string): Promise<{ sales: Sale[]; products: Product[] }> {
+  const [salesRes, prodRes] = await Promise.all([
+    supabase.from('manual_sales').select('*, products(name)').eq('user_id', userId).order('sale_date', { ascending: false }),
+    supabase.from('products').select('id, name').eq('user_id', userId),
+  ]);
+  return {
+    sales: (salesRes.data as Sale[]) || [],
+    products: (prodRes.data as Product[]) || [],
+  };
+}
+
 const Sales = () => {
+  useDocumentTitle('Vendas');
   const { user } = useAuth();
   const { toast } = useToast();
-  const [sales, setSales] = useState<Sale[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [form, setForm] = useState({ product_id: '', quantity: 1, sale_value: 0, sale_date: new Date().toISOString().split('T')[0] });
 
-  const fetchData = async () => {
-    if (!user) return;
-    const [salesRes, prodRes] = await Promise.all([
-      supabase.from('manual_sales').select('*, products(name)').eq('user_id', user.id).order('sale_date', { ascending: false }),
-      supabase.from('products').select('id, name').eq('user_id', user.id),
-    ]);
-    setSales((salesRes.data as Sale[]) || []);
-    setProducts((prodRes.data as Product[]) || []);
-    setLoading(false);
-  };
-
-  useEffect(() => { fetchData(); }, [user]);
+  const { data, isLoading: loading } = useQuery({
+    queryKey: ['sales', user?.id],
+    queryFn: () => fetchSalesData(user!.id),
+    enabled: !!user?.id,
+  });
+  const sales = data?.sales ?? [];
+  const products = data?.products ?? [];
 
   const handleAdd = async () => {
     if (!user || !form.product_id) return;
@@ -46,12 +55,14 @@ const Sales = () => {
     toast({ title: 'Venda registrada' });
     setDialogOpen(false);
     setForm({ product_id: '', quantity: 1, sale_value: 0, sale_date: new Date().toISOString().split('T')[0] });
-    fetchData();
+    void queryClient.invalidateQueries({ queryKey: ['sales', user?.id] });
   };
 
   const totalRevenue = sales.reduce((s, x) => s + x.sale_value, 0);
   const thisMonth = sales.filter((s) => new Date(s.sale_date).getMonth() === new Date().getMonth() && new Date(s.sale_date).getFullYear() === new Date().getFullYear());
   const monthlyRevenue = thisMonth.reduce((s, x) => s + x.sale_value, 0);
+
+  if (loading) return <PageLoader />;
 
   return (
     <div className="space-y-6 max-w-6xl">
@@ -92,7 +103,14 @@ const Sales = () => {
         <CardHeader><CardTitle className="text-base">Vendas Recentes</CardTitle></CardHeader>
         <CardContent className="p-0 sm:p-6">
           {sales.length === 0 ? (
-            <p className="text-sm text-muted-foreground text-center py-8 px-4">Nenhuma venda registrada ainda.</p>
+            <EmptyState
+              icon={<DollarSign className="h-10 w-10 mx-auto" />}
+              title="Nenhuma venda registrada ainda."
+              description="Registre vendas manuais para acompanhar sua receita."
+              action={
+                <Button onClick={() => setDialogOpen(true)}><Plus className="h-4 w-4 mr-2" />Adicionar Venda</Button>
+              }
+            />
           ) : (
             <div className="overflow-x-auto">
               <Table>

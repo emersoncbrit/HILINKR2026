@@ -7,6 +7,10 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { ShoppingBag, ExternalLink, Save, Upload, Eye, Palette, Share2, Loader2, ImagePlus, Trash2 } from 'lucide-react';
+import { PageLoader } from '@/components/PageLoader';
+import { useDocumentTitle } from '@/hooks/use-document-title';
+import { useUsername } from '@/hooks/use-username';
+import { BASE_URL } from '@/lib/reserved-usernames';
 import { Separator } from '@/components/ui/separator';
 import StoreTemplateSelector from '@/components/hub/StoreTemplateSelector';
 import PopupConfigCard from '@/components/hub/PopupConfigCard';
@@ -40,6 +44,7 @@ const SOCIAL_FIELDS = [
 ];
 
 const Hub = () => {
+  useDocumentTitle('Minha Loja');
   const { user } = useAuth();
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
@@ -191,15 +196,11 @@ const Hub = () => {
     setSaving(false);
   };
 
-  const storeUrl = form.slug ? `${window.location.origin}/loja/${form.slug}` : '';
+  const { username } = useUsername();
+  const origin = typeof window !== 'undefined' ? window.location.origin : BASE_URL;
+  const storeUrl = form.slug ? (username ? `${origin}/${username}/loja/${form.slug}` : `${origin}/loja/${form.slug}`) : '';
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-      </div>
-    );
-  }
+  if (loading) return <PageLoader />;
 
   return (
     <div className="space-y-6 max-w-4xl">
@@ -214,7 +215,7 @@ const Hub = () => {
         <div className="flex gap-2">
           {storeUrl && (
             <Button variant="outline" size="sm" asChild>
-              <a href={`/loja/${form.slug}`} target="_blank" rel="noopener noreferrer">
+              <a href={username ? `/${username}/loja/${form.slug}` : `/loja/${form.slug}`} target="_blank" rel="noopener noreferrer">
                 <Eye className="h-4 w-4 mr-1" />Ver Loja
               </a>
             </Button>
@@ -253,7 +254,7 @@ const Hub = () => {
                   >
                     Copiar
                   </Button>
-                  <a href={`/loja/${form.slug}`} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline flex items-center gap-1">
+                  <a href={username ? `/${username}/loja/${form.slug}` : `/loja/${form.slug}`} target="_blank" rel="noopener noreferrer" className="text-xs text-primary hover:underline flex items-center gap-1">
                     Acessar <ExternalLink className="h-3 w-3" />
                   </a>
                 </div>

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
@@ -10,6 +11,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { Plus, Search, Package, ExternalLink, Pencil, Copy, Share2, Image, Loader2 } from 'lucide-react';
+import { PageLoader } from '@/components/PageLoader';
+import { EmptyState } from '@/components/EmptyState';
+import { useDocumentTitle } from '@/hooks/use-document-title';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
@@ -33,11 +37,16 @@ const parseBRL = (value: string): number => {
   return parseFloat(cleaned) || 0;
 };
 
+async function fetchProductsList(userId: string): Promise<Product[]> {
+  const { data } = await supabase.from('products').select('*').eq('user_id', userId).order('created_at', { ascending: false });
+  return (data as Product[]) || [];
+}
+
 const Products = () => {
+  useDocumentTitle('Produtos');
   const { user } = useAuth();
   const { toast } = useToast();
-  const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState<string>('all');
   const [filterCategory, setFilterCategory] = useState<string>('all');
@@ -53,14 +62,11 @@ const Products = () => {
     name: '', affiliate_link: '', original_link: '', image_url: '', platform: '', category: '', price: 0, commission_estimate: 0, status: 'active',
   });
 
-  const fetchProducts = async () => {
-    if (!user) return;
-    const { data } = await supabase.from('products').select('*').eq('user_id', user.id).order('created_at', { ascending: false });
-    setProducts((data as Product[]) || []);
-    setLoading(false);
-  };
-
-  useEffect(() => { fetchProducts(); }, [user]);
+  const { data: products = [], isLoading: loading } = useQuery({
+    queryKey: ['products', user?.id],
+    queryFn: () => fetchProductsList(user!.id),
+    enabled: !!user?.id,
+  });
 
   useEffect(() => {
     supabase.from('admin_platforms').select('name').order('name').then(({ data }) => {
@@ -138,7 +144,7 @@ const Products = () => {
     }
     setDialogOpen(false);
     resetForm();
-    fetchProducts();
+    void queryClient.invalidateQueries({ queryKey: ['products', user?.id] });
   };
 
   const copyToClipboard = (text: string, label: string) => {
@@ -343,14 +349,16 @@ const Products = () => {
 
       {/* Grid de produtos */}
       {loading ? (
-        <div className="flex items-center justify-center h-32">
-          <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-        </div>
+        <PageLoader />
       ) : filtered.length === 0 ? (
         <Card className="glass-card">
-          <CardContent className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-            <Package className="h-10 w-10 mb-3 opacity-50" />
-            <p>Nenhum produto ainda. Adicione seu primeiro produto.</p>
+          <CardContent className="py-12">
+            <EmptyState
+              icon={<Package className="h-10 w-10 mx-auto" />}
+              title="Nenhum produto ainda."
+              description="Adicione seu primeiro produto para começar a organizar seus links de afiliado."
+              action={<Button onClick={() => setDialogOpen(true)}><Plus className="h-4 w-4 mr-2" />Adicionar produto</Button>}
+            />
           </CardContent>
         </Card>
       ) : (

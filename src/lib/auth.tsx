@@ -54,13 +54,15 @@ export function RequireAuth({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!loading && !user) {
-      navigate('/auth');
+      const path = window.location.pathname + window.location.search;
+      const isAuthPage = path.startsWith('/auth');
+      navigate(isAuthPage ? '/auth' : `/auth?returnUrl=${encodeURIComponent(path)}`);
     }
   }, [user, loading, navigate]);
 
   if (loading) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
+      <div className="flex min-h-screen items-center justify-center bg-background" role="status" aria-label="Carregando">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
       </div>
     );

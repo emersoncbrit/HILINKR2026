@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 import { StatCard } from '@/components/StatCard';
+import { PageLoader } from '@/components/PageLoader';
+import { useDocumentTitle } from '@/hooks/use-document-title';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Package, Megaphone, MousePointerClick, TrendingUp, AlertTriangle, Clock, FolderOpen, Store, Trophy, Zap, Star, Flame, Crown } from 'lucide-react';
@@ -53,6 +55,7 @@ function getLevel(score: number): { level: AffiliateLevel; progress: number; nex
 }
 
 const Dashboard = () => {
+  useDocumentTitle('Painel');
   const { user } = useAuth();
   const [stats, setStats] = useState({
     totalProducts: 0,
@@ -179,13 +182,7 @@ const Dashboard = () => {
     fetchStats();
   }, [user]);
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-      </div>
-    );
-  }
+  if (loading) return <PageLoader />;
 
   const { level, progress, nextLevel } = getLevel(affiliateScore);
   const LevelIcon = level.icon;
@@ -237,6 +234,11 @@ const Dashboard = () => {
               <div className="h-full bg-primary rounded-full transition-all duration-700" style={{ width: `${progress}%` }} />
             </div>
           </div>
+          {nextLevel && (
+            <p className="mt-3 text-xs text-muted-foreground">
+              💡 Próximo nível: {nextLevel.min - affiliateScore} pts — cadastre mais produtos, ative campanhas ou gere cliques para subir.
+            </p>
+          )}
         </CardContent>
       </Card>
 

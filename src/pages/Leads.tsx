@@ -1,10 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { Mail, Download, Trash2, Users, Loader2 } from 'lucide-react';
+import { useDocumentTitle } from '@/hooks/use-document-title';
+import { Mail, Download, Trash2, Users, MessageCircle } from 'lucide-react';
 import {
   Table,
   TableBody,
@@ -13,7 +15,18 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table';
-import * as XLSX from 'xlsx';
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { PageLoader } from '@/components/PageLoader';
+import { EmptyState } from '@/components/EmptyState';
+import ExcelJS from 'exceljs';
 
 interface Lead {
   id: string;
@@ -23,56 +36,82 @@ interface Lead {
   created_at: string;
 }
 
+async function fetchLeads(userId: string): Promise<Lead[]> {
+  const { data } = await supabase
+    .from('hub_leads')
+    .select('*')
+    .eq('owner_id', userId)
+    .order('created_at', { ascending: false });
+  return (data as Lead[]) || [];
+}
+
 const Leads = () => {
+  useDocumentTitle('Leads');
   const { user } = useAuth();
   const { toast } = useToast();
-  const [leads, setLeads] = useState<Lead[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const [leadToDelete, setLeadToDelete] = useState<Lead | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
-  const fetchLeads = async () => {
-    if (!user) return;
-    const { data } = await supabase
-      .from('hub_leads')
-      .select('*')
-      .eq('owner_id', user.id)
-      .order('created_at', { ascending: false });
-    setLeads((data as Lead[]) || []);
-    setLoading(false);
-  };
+  const { data: leads = [], isLoading: loading } = useQuery({
+    queryKey: ['hub_leads', user?.id],
+    queryFn: () => fetchLeads(user!.id),
+    enabled: !!user?.id,
+  });
 
-  useEffect(() => { fetchLeads(); }, [user]);
-
-  const exportExcel = () => {
+  const exportExcel = async () => {
     if (leads.length === 0) {
       toast({ title: 'Nenhum lead para exportar', variant: 'destructive' });
       return;
     }
-    const rows = leads.map((l) => ({
-      Nome: l.name,
-      Email: l.email,
-      WhatsApp: l.whatsapp || '',
-      'Data de Captura': new Date(l.created_at).toLocaleString('pt-BR'),
-    }));
-    const ws = XLSX.utils.json_to_sheet(rows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Leads');
-    XLSX.writeFile(wb, `leads-${new Date().toISOString().slice(0, 10)}.xlsx`);
+    const workbook = new ExcelJS.Workbook();
+    const sheet = workbook.addWorksheet('Leads');
+    sheet.columns = [
+      { header: 'Nome', key: 'name', width: 25 },
+      { header: 'Email', key: 'email', width: 30 },
+      { header: 'WhatsApp', key: 'whatsapp', width: 18 },
+      { header: 'Data de Captura', key: 'created_at', width: 22 },
+    ];
+    leads.forEach((l) => {
+      sheet.addRow({
+        name: l.name,
+        email: l.email,
+        whatsapp: l.whatsapp || '',
+        created_at: new Date(l.created_at).toLocaleString('pt-BR'),
+      });
+    });
+    const buffer = await workbook.xlsx.writeBuffer();
+    const blob = new Blob([buffer], {
+      type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `leads-${new Date().toISOString().slice(0, 10)}.xlsx`;
+    link.click();
+    URL.revokeObjectURL(url);
     toast({ title: 'Arquivo exportado!' });
   };
 
-  const deleteLead = async (id: string) => {
-    await supabase.from('hub_leads').delete().eq('id', id);
-    setLeads((prev) => prev.filter((l) => l.id !== id));
+  const confirmDelete = (lead: Lead) => setLeadToDelete(lead);
+
+  const deleteLead = async () => {
+    if (!leadToDelete) return;
+    setDeleting(true);
+    const { error } = await supabase.from('hub_leads').delete().eq('id', leadToDelete.id);
+    if (error) {
+      toast({ title: 'Erro ao remover', description: error.message, variant: 'destructive' });
+      setDeleting(false);
+      setLeadToDelete(null);
+      return;
+    }
+    await queryClient.invalidateQueries({ queryKey: ['hub_leads', user?.id] });
+    setLeadToDelete(null);
+    setDeleting(false);
     toast({ title: 'Lead removido' });
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-      </div>
-    );
-  }
+  if (loading) return <PageLoader />;
 
   return (
     <div className="space-y-6 max-w-5xl">
@@ -121,7 +160,7 @@ const Leads = () => {
           <CardContent className="pt-6">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-lg bg-primary/10">
-                <Users className="h-5 w-5 text-primary" />
+                <MessageCircle className="h-5 w-5 text-primary" />
               </div>
               <div>
                 <p className="text-2xl font-bold">{leads.filter(l => l.whatsapp).length}</p>
@@ -138,11 +177,11 @@ const Leads = () => {
         </CardHeader>
         <CardContent className="p-0 sm:p-6">
           {leads.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground px-4">
-              <Mail className="h-12 w-12 mx-auto mb-3 opacity-30" />
-              <p>Nenhum lead capturado ainda.</p>
-              <p className="text-sm mt-1">Ative o popup de captura nas configurações da sua loja.</p>
-            </div>
+            <EmptyState
+              icon={<Mail className="h-12 w-12 mx-auto" />}
+              title="Nenhum lead capturado ainda."
+              description="Ative o popup de captura nas configurações da sua loja."
+            />
           ) : (
             <div className="overflow-x-auto">
               <Table>
@@ -165,7 +204,7 @@ const Leads = () => {
                         {new Date(lead.created_at).toLocaleDateString('pt-BR')}
                       </TableCell>
                       <TableCell>
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => deleteLead(lead.id)}>
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => confirmDelete(lead)} aria-label="Remover lead">
                           <Trash2 className="h-4 w-4 text-destructive" />
                         </Button>
                       </TableCell>
@@ -177,6 +216,23 @@ const Leads = () => {
           )}
         </CardContent>
       </Card>
+
+      <AlertDialog open={!!leadToDelete} onOpenChange={(open) => !open && setLeadToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remover lead?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Esta ação não pode ser desfeita. O lead será removido permanentemente.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancelar</AlertDialogCancel>
+            <Button variant="destructive" disabled={deleting} onClick={deleteLead}>
+              {deleting ? 'Removendo...' : 'Remover'}
+            </Button>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

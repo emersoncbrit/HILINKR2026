@@ -1,6 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
+import { useUsername } from '@/hooks/use-username';
+import { BASE_URL } from '@/lib/reserved-usernames';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
@@ -8,6 +11,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { useToast } from '@/hooks/use-toast';
 import { Plus, Megaphone, Copy, Eye, Pencil } from 'lucide-react';
 import { CampaignForm, INITIAL_FORM, type CampaignFormData, type ReviewItem, type FAQItem } from '@/components/campaigns/CampaignForm';
+import { PageLoader } from '@/components/PageLoader';
+import { EmptyState } from '@/components/EmptyState';
+import { useDocumentTitle } from '@/hooks/use-document-title';
 
 interface Product { id: string; name: string; }
 interface Campaign {
@@ -18,29 +24,36 @@ interface Campaign {
   created_at: string; product_id: string; products?: { name: string };
 }
 
+async function fetchCampaignsData(userId: string): Promise<{ campaigns: Campaign[]; products: Product[] }> {
+  const [campRes, prodRes] = await Promise.all([
+    supabase.from('campaigns').select('*, products(name)').eq('user_id', userId).order('created_at', { ascending: false }),
+    supabase.from('products').select('id, name').eq('user_id', userId).eq('status', 'active'),
+  ]);
+  return {
+    campaigns: (campRes.data as unknown as Campaign[]) || [],
+    products: (prodRes.data as Product[]) || [],
+  };
+}
+
 const Campaigns = () => {
+  useDocumentTitle('Campanhas');
   const { user } = useAuth();
   const { toast } = useToast();
-  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
-  const [products, setProducts] = useState<Product[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
+  const { username } = useUsername();
+  const origin = typeof window !== 'undefined' ? window.location.origin : BASE_URL;
   const [createOpen, setCreateOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [editingCampaign, setEditingCampaign] = useState<Campaign | null>(null);
   const [form, setForm] = useState<CampaignFormData>(INITIAL_FORM);
 
-  const fetchData = async () => {
-    if (!user) return;
-    const [campRes, prodRes] = await Promise.all([
-      supabase.from('campaigns').select('*, products(name)').eq('user_id', user.id).order('created_at', { ascending: false }),
-      supabase.from('products').select('id, name').eq('user_id', user.id).eq('status', 'active'),
-    ]);
-    setCampaigns((campRes.data as unknown as Campaign[]) || []);
-    setProducts((prodRes.data as Product[]) || []);
-    setLoading(false);
-  };
-
-  useEffect(() => { fetchData(); }, [user]);
+  const { data, isLoading: loading } = useQuery({
+    queryKey: ['campaigns', user?.id],
+    queryFn: () => fetchCampaignsData(user!.id),
+    enabled: !!user?.id,
+  });
+  const campaigns = data?.campaigns ?? [];
+  const products = data?.products ?? [];
 
   const generateSlug = (name: string) =>
     name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') + '-' + Math.random().toString(36).substring(2, 7);
@@ -78,7 +91,7 @@ const Campaigns = () => {
     toast({ title: 'Campanha criada!' });
     setCreateOpen(false);
     setForm(INITIAL_FORM);
-    fetchData();
+    void queryClient.invalidateQueries({ queryKey: ['campaigns', user?.id] });
   };
 
   const openEdit = (c: Campaign) => {
@@ -114,17 +127,17 @@ const Campaigns = () => {
     setEditOpen(false);
     setEditingCampaign(null);
     setForm(INITIAL_FORM);
-    fetchData();
+    void queryClient.invalidateQueries({ queryKey: ['campaigns', user?.id] });
   };
 
   const toggleStatus = async (c: Campaign) => {
     const newStatus = c.status === 'active' ? 'inactive' : 'active';
     await supabase.from('campaigns').update({ status: newStatus }).eq('id', c.id);
-    fetchData();
+    void queryClient.invalidateQueries({ queryKey: ['campaigns', user?.id] });
   };
 
   const copyLink = (slug: string) => {
-    const url = `${window.location.origin}/c/${slug}`;
+    const url = username ? `${origin}/${username}/c/${slug}` : `${origin}/c/${slug}`;
     navigator.clipboard.writeText(url);
     toast({ title: 'Link copiado!' });
   };
@@ -155,14 +168,18 @@ const Campaigns = () => {
       </Dialog>
 
       {loading ? (
-        <div className="flex items-center justify-center h-32">
-          <div className="h-6 w-6 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-        </div>
+        <PageLoader />
       ) : campaigns.length === 0 ? (
         <Card className="glass-card">
-          <CardContent className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-            <Megaphone className="h-10 w-10 mb-3 opacity-50" />
-            <p>Nenhuma campanha ainda. Crie sua primeira campanha.</p>
+          <CardContent className="py-12">
+            <EmptyState
+              icon={<Megaphone className="h-10 w-10 mx-auto" />}
+              title="Nenhuma campanha ainda."
+              description="Crie sua primeira campanha para gerar páginas de venda."
+              action={
+                <Button onClick={() => setCreateOpen(true)}><Plus className="h-4 w-4 mr-2" />Nova Campanha</Button>
+              }
+            />
           </CardContent>
         </Card>
       ) : (
@@ -185,7 +202,7 @@ const Campaigns = () => {
                     <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => copyLink(c.slug)}>
                       <Copy className="h-3.5 w-3.5 mr-1" />Copiar
                     </Button>
-                    <a href={`/c/${c.slug}`} target="_blank" rel="noopener noreferrer">
+                    <a href={username ? `/${username}/c/${c.slug}` : `/c/${c.slug}`} target="_blank" rel="noopener noreferrer">
                       <Button variant="ghost" size="sm" className="h-8 text-xs"><Eye className="h-3.5 w-3.5 mr-1" />Ver</Button>
                     </a>
                     <Button variant="ghost" size="sm" className="h-8 text-xs" onClick={() => openEdit(c)}>

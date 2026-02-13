@@ -1,13 +1,24 @@
 import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { Bolt, ArrowRight } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
+import { useSiteDesign } from '@/lib/site-design';
 
 type AuthMode = 'login' | 'signup' | 'reset';
+
+function getAuthErrorMessage(message: string): string {
+  const m = message.toLowerCase();
+  if (m.includes('invalid login credentials') || m.includes('invalid_credentials')) return 'Email ou senha incorretos. Tente novamente.';
+  if (m.includes('email not confirmed')) return 'Confirme seu email antes de entrar. Verifique sua caixa de entrada.';
+  if (m.includes('user already registered') || m.includes('already registered')) return 'Este email já está cadastrado. Faça login ou use "Esqueceu a senha?".';
+  if (m.includes('password')) return 'A senha deve ter no mínimo 6 caracteres.';
+  if (m.includes('rate limit') || m.includes('too many')) return 'Muitas tentativas. Aguarde um momento e tente novamente.';
+  return message;
+}
 
 const Auth = () => {
   const [mode, setMode] = useState<AuthMode>('login');
@@ -16,7 +27,11 @@ const Auth = () => {
   const [fullName, setFullName] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const returnUrl = searchParams.get('returnUrl');
   const { toast } = useToast();
+  const { logoUrl, siteName, siteNameFallback } = useSiteDesign();
+  const logoOnly = !siteName.trim();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -26,7 +41,8 @@ const Auth = () => {
       if (mode === 'login') {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
-        navigate('/dashboard');
+        const target = returnUrl ? decodeURIComponent(returnUrl) : '/dashboard';
+        navigate(target.startsWith('/') ? target : '/dashboard');
       } else if (mode === 'signup') {
         const { error } = await supabase.auth.signUp({
           email,
@@ -37,7 +53,10 @@ const Auth = () => {
           },
         });
         if (error) throw error;
-        toast({ title: 'Verifique seu email', description: 'Enviamos um link de confirmação.' });
+        toast({
+          title: 'Verifique seu email',
+          description: 'Enviamos um link de confirmação. Acesse sua caixa de entrada e clique no link para ativar sua conta.',
+        });
       } else {
         const { error } = await supabase.auth.resetPasswordForEmail(email, {
           redirectTo: window.location.origin,
@@ -45,8 +64,9 @@ const Auth = () => {
         if (error) throw error;
         toast({ title: 'Verifique seu email', description: 'Link de redefinição de senha enviado.' });
       }
-    } catch (err: any) {
-      toast({ title: 'Erro', description: err.message, variant: 'destructive' });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      toast({ title: 'Erro', description: getAuthErrorMessage(message), variant: 'destructive' });
     } finally {
       setLoading(false);
     }
@@ -60,8 +80,12 @@ const Auth = () => {
         <div className="absolute inset-0 glow-blue opacity-40" />
         
         <div className="relative z-10 flex items-center gap-2.5">
-          <Bolt className="h-6 w-6 text-sidebar-primary" />
-          <span className="text-lg font-bold tracking-tight text-sidebar-accent-foreground">Hilinkr</span>
+          <img
+            src={logoUrl}
+            alt={siteNameFallback}
+            className={logoOnly ? 'h-12 w-12 object-contain' : 'h-9 w-9 object-contain'}
+          />
+          {siteName ? <span className="text-lg font-bold tracking-tight text-sidebar-accent-foreground">{siteName}</span> : null}
         </div>
 
         <div className="relative z-10 max-w-lg">
@@ -74,7 +98,7 @@ const Auth = () => {
           </p>
         </div>
 
-        <p className="relative z-10 text-sidebar-foreground/30 text-sm">© 2026 Hilinkr</p>
+        <p className="relative z-10 text-sidebar-foreground/30 text-sm">© {new Date().getFullYear()} {siteNameFallback}</p>
       </div>
 
       {/* Right panel — clean form */}
@@ -82,8 +106,12 @@ const Auth = () => {
         <div className="w-full max-w-[400px] animate-fade-in">
           {/* Mobile logo */}
           <div className="lg:hidden flex items-center gap-2.5 mb-12">
-            <Bolt className="h-5 w-5 text-primary" />
-            <span className="text-lg font-bold tracking-tight">Hilinkr</span>
+            <img
+              src={logoUrl}
+              alt={siteNameFallback}
+              className={logoOnly ? 'h-12 w-12 object-contain' : 'h-9 w-9 object-contain'}
+            />
+            {siteName ? <span className="text-lg font-bold tracking-tight">{siteName}</span> : null}
           </div>
 
           <h2 className="text-2xl font-bold tracking-tight mb-2">

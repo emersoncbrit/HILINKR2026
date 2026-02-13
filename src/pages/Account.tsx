@@ -6,11 +6,14 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
+import { PageLoader } from '@/components/PageLoader';
+import { useDocumentTitle } from '@/hooks/use-document-title';
 import { User, Save, Loader2, Crown, CheckCircle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 
 const Account = () => {
+  useDocumentTitle('Minha Conta');
   const { user } = useAuth();
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
@@ -69,13 +72,7 @@ const Account = () => {
     setSaving(false);
   };
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" />
-      </div>
-    );
-  }
+  if (loading) return <PageLoader />;
 
   return (
     <div className="space-y-6 max-w-2xl">
@@ -119,7 +116,7 @@ const Account = () => {
               onChange={(e) => setForm({ ...form, username: e.target.value.toLowerCase().replace(/[^a-z0-9_-]/g, '') })}
               placeholder="seu_username"
             />
-            <p className="text-xs text-muted-foreground mt-1">Apenas letras, números, _ e -</p>
+            <p className="text-xs text-muted-foreground mt-1">Apenas letras, números, _ e -. Seu link na bio será hilinkr.com/<strong>{form.username || 'seu_username'}</strong>; lojas e campanhas usam hilinkr.com/<strong>{form.username || 'username'}</strong>/loja/... e /c/...</p>
           </div>
           <div>
             <Label>Telefone</Label>

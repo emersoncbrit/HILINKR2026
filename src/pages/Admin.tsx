@@ -12,12 +12,15 @@ import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Plus, Trash2, Users, Package, Megaphone, Store, Mail, Link2, Layout, GraduationCap, ShoppingBag, Users2, Tag, Monitor, Shield } from 'lucide-react';
+import { Plus, Trash2, Users, Package, Megaphone, Store, Mail, Link2, Layout, GraduationCap, ShoppingBag, Users2, Tag, Monitor, Shield, Palette, Upload, Loader2 } from 'lucide-react';
+import { useSiteDesign } from '@/lib/site-design';
+import type { SiteDesignConfig } from '@/lib/site-design';
 
 const Admin = () => {
   const { isAdmin, loading: adminLoading } = useAdmin();
   const { user } = useAuth();
   const { toast } = useToast();
+  const { refetch: refetchSiteDesign } = useSiteDesign();
 
   // State for all sections
   const [platforms, setPlatforms] = useState<any[]>([]);
@@ -32,6 +35,18 @@ const Admin = () => {
   const [allLeads, setAllLeads] = useState<any[]>([]);
   const [allLinkBios, setAllLinkBios] = useState<any[]>([]);
   const [allTemplates, setAllTemplates] = useState<any[]>([]);
+  const [designConfig, setDesignConfig] = useState<SiteDesignConfig | null>(null);
+  const [designSaving, setDesignSaving] = useState(false);
+  const [designUploadingLogo, setDesignUploadingLogo] = useState(false);
+  const [designForm, setDesignForm] = useState({
+    site_name: 'Hilinkr',
+    logo_url: '',
+    favicon_url: '',
+    primary_color: '#58c411',
+    secondary_color: '#e8f5e0',
+    accent_color: '#58c411',
+    sidebar_primary_color: '#58c411',
+  });
 
   // Form states
   const [newPlatform, setNewPlatform] = useState('');
@@ -41,8 +56,22 @@ const Admin = () => {
   const [planForm, setPlanForm] = useState({ name: '', commission: '', description: '', affiliate_link: '' });
   const [dialogOpen, setDialogOpen] = useState<string | null>(null);
 
+  useEffect(() => {
+    if (designConfig) {
+      setDesignForm({
+        site_name: designConfig.site_name || 'Hilinkr',
+        logo_url: designConfig.logo_url || '',
+        favicon_url: designConfig.favicon_url || '',
+        primary_color: designConfig.primary_color || '#58c411',
+        secondary_color: designConfig.secondary_color || '#e8f5e0',
+        accent_color: designConfig.accent_color || '#58c411',
+        sidebar_primary_color: designConfig.sidebar_primary_color || designConfig.primary_color || '#58c411',
+      });
+    }
+  }, [designConfig]);
+
   const fetchAll = async () => {
-    const [p, c, t, v, a, users, prods, camps, hubs, leads, bios, temps] = await Promise.all([
+    const results = await Promise.allSettled([
       supabase.from('admin_platforms').select('*').order('name'),
       supabase.from('admin_categories').select('*').order('name'),
       supabase.from('admin_tutorials').select('*').order('sort_order'),
@@ -55,19 +84,22 @@ const Admin = () => {
       supabase.from('hub_leads').select('*').order('created_at', { ascending: false }),
       supabase.from('link_bio_configs').select('*').order('created_at', { ascending: false }),
       supabase.from('story_templates').select('*').order('created_at', { ascending: false }),
+      supabase.from('site_design_config').select('*').eq('id', 'default').maybeSingle(),
     ]);
-    setPlatforms(p.data || []);
-    setCategories(c.data || []);
-    setTutorials(t.data || []);
-    setVendaMais(v.data || []);
-    setAffiliatePlans(a.data || []);
-    setAllUsers(users.data || []);
-    setAllProducts(prods.data || []);
-    setAllCampaigns(camps.data || []);
-    setAllHubs(hubs.data || []);
-    setAllLeads(leads.data || []);
-    setAllLinkBios(bios.data || []);
-    setAllTemplates(temps.data || []);
+    const getData = (i: number) => (results[i].status === 'fulfilled' ? results[i].value.data : null);
+    setPlatforms(getData(0) || []);
+    setCategories(getData(1) || []);
+    setTutorials(getData(2) || []);
+    setVendaMais(getData(3) || []);
+    setAffiliatePlans(getData(4) || []);
+    setAllUsers(getData(5) || []);
+    setAllProducts(getData(6) || []);
+    setAllCampaigns(getData(7) || []);
+    setAllHubs(getData(8) || []);
+    setAllLeads(getData(9) || []);
+    setAllLinkBios(getData(10) || []);
+    setAllTemplates(getData(11) || []);
+    setDesignConfig((getData(12) as SiteDesignConfig) || null);
   };
 
   useEffect(() => { if (isAdmin) fetchAll(); }, [isAdmin]);
@@ -150,6 +182,61 @@ const Admin = () => {
     fetchAll();
   };
 
+  const uploadLogo = async (file: File) => {
+    if (!user) return;
+    setDesignUploadingLogo(true);
+    try {
+      const ext = file.name.split('.').pop() || 'png';
+      // Path deve começar com user.id para a política RLS do bucket store-assets permitir o upload
+      const path = `${user.id}/site/logo-${Date.now()}.${ext}`;
+      const { error } = await supabase.storage.from('store-assets').upload(path, file, { upsert: true });
+      if (error) throw error;
+      const { data: urlData } = supabase.storage.from('store-assets').getPublicUrl(path);
+      setDesignForm((f) => ({ ...f, logo_url: urlData.publicUrl }));
+      toast({ title: 'Logo enviado! Clique em "Salvar design" para aplicar.' });
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'Tente novamente.';
+      toast({ title: 'Erro no upload', description: msg, variant: 'destructive' });
+    } finally {
+      setDesignUploadingLogo(false);
+    }
+  };
+
+  const saveDesign = async () => {
+    setDesignSaving(true);
+    try {
+      const payload = {
+        site_name: designForm.site_name.trim() || 'Hilinkr',
+        logo_url: designForm.logo_url.trim() || null,
+        favicon_url: designForm.favicon_url.trim() || null,
+        primary_color: designForm.primary_color.trim() || '#58c411',
+        secondary_color: designForm.secondary_color.trim() || '#e8f5e0',
+        accent_color: designForm.accent_color.trim() || '#58c411',
+        sidebar_primary_color: designForm.sidebar_primary_color.trim() || designForm.primary_color.trim() || '#58c411',
+        updated_at: new Date().toISOString(),
+      };
+      const { error } = await supabase
+        .from('site_design_config')
+        .upsert({ id: 'default', ...payload }, { onConflict: 'id' });
+      if (error) throw error;
+      await refetchSiteDesign();
+      toast({ title: 'Design salvo! O site foi atualizado.' });
+      fetchAll();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : '';
+      const tabelaNaoExiste = /site_design_config|does not exist|não existe/i.test(msg);
+      toast({
+        title: 'Erro ao salvar',
+        description: tabelaNaoExiste
+          ? 'Crie a tabela no Supabase: SQL Editor → abra o arquivo supabase/COPIAR_E_COLAR_NO_SUPABASE.sql do projeto, copie todo o conteúdo, cole no editor e clique em Run.'
+          : msg || 'Tente novamente.',
+        variant: 'destructive',
+      });
+    } finally {
+      setDesignSaving(false);
+    }
+  };
+
   return (
     <div className="space-y-6 max-w-6xl">
       <div>
@@ -157,8 +244,9 @@ const Admin = () => {
         <p className="text-sm text-muted-foreground">Gerencie toda a plataforma</p>
       </div>
 
-      <Tabs defaultValue="platforms" className="w-full">
+      <Tabs defaultValue="design" className="w-full">
         <TabsList className="flex flex-wrap h-auto gap-1 bg-muted/50 p-1 rounded-xl">
+          <TabsTrigger value="design" className="text-xs gap-1"><Palette className="h-3 w-3" />Design do site</TabsTrigger>
           <TabsTrigger value="platforms" className="text-xs gap-1"><Monitor className="h-3 w-3" />Plataformas</TabsTrigger>
           <TabsTrigger value="categories" className="text-xs gap-1"><Tag className="h-3 w-3" />Categorias</TabsTrigger>
           <TabsTrigger value="users" className="text-xs gap-1"><Users className="h-3 w-3" />Usuários</TabsTrigger>
@@ -172,6 +260,144 @@ const Admin = () => {
           <TabsTrigger value="vendamais" className="text-xs gap-1"><ShoppingBag className="h-3 w-3" />Venda Mais</TabsTrigger>
           <TabsTrigger value="afiliado" className="text-xs gap-1"><Users2 className="h-3 w-3" />Afiliado</TabsTrigger>
         </TabsList>
+
+        {/* DESIGN DO SITE (WHITE-LABEL) */}
+        <TabsContent value="design">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Palette className="h-5 w-5" />
+                Design do site (White-label)
+              </CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Configure logo, nome e cores do site. As alterações valem para a landing, login, dashboard e demais páginas.
+              </p>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Nome do site</Label>
+                  <Input
+                    value={designForm.site_name}
+                    onChange={(e) => setDesignForm((f) => ({ ...f, site_name: e.target.value }))}
+                    placeholder="Ex: Hilinkr"
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Logo (URL ou envie um arquivo)</Label>
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <Input
+                    value={designForm.logo_url}
+                    onChange={(e) => setDesignForm((f) => ({ ...f, logo_url: e.target.value }))}
+                    placeholder="https://... ou envie abaixo"
+                  />
+                  <label className="flex items-center justify-center gap-2 px-4 py-2 rounded-md border border-input bg-background text-sm cursor-pointer hover:bg-accent">
+                    <Upload className="h-4 w-4" />
+                    {designUploadingLogo ? 'Enviando...' : 'Enviar logo'}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      disabled={designUploadingLogo}
+                      onChange={(e) => { const f = e.target.files?.[0]; if (f) uploadLogo(f); e.target.value = ''; }}
+                    />
+                  </label>
+                </div>
+                {designForm.logo_url && (
+                  <div className="mt-2 flex items-center gap-3">
+                    <img src={designForm.logo_url} alt="Preview logo" className="h-10 w-10 object-contain border rounded" />
+                    <span className="text-xs text-muted-foreground">Preview</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label>Favicon (URL)</Label>
+                <Input
+                  value={designForm.favicon_url}
+                  onChange={(e) => setDesignForm((f) => ({ ...f, favicon_url: e.target.value }))}
+                  placeholder="https://... (ícone da aba do navegador)"
+                />
+              </div>
+
+              <div className="border-t pt-6">
+                <p className="text-sm font-medium mb-3">Cores do tema</p>
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                  <div className="space-y-2">
+                    <Label className="text-xs">Cor primária</Label>
+                    <div className="flex gap-2">
+                      <input
+                        type="color"
+                        value={designForm.primary_color}
+                        onChange={(e) => setDesignForm((f) => ({ ...f, primary_color: e.target.value }))}
+                        className="h-10 w-14 rounded border cursor-pointer"
+                      />
+                      <Input
+                        value={designForm.primary_color}
+                        onChange={(e) => setDesignForm((f) => ({ ...f, primary_color: e.target.value }))}
+                        className="font-mono text-sm"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs">Cor secundária</Label>
+                    <div className="flex gap-2">
+                      <input
+                        type="color"
+                        value={designForm.secondary_color}
+                        onChange={(e) => setDesignForm((f) => ({ ...f, secondary_color: e.target.value }))}
+                        className="h-10 w-14 rounded border cursor-pointer"
+                      />
+                      <Input
+                        value={designForm.secondary_color}
+                        onChange={(e) => setDesignForm((f) => ({ ...f, secondary_color: e.target.value }))}
+                        className="font-mono text-sm"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs">Cor de destaque</Label>
+                    <div className="flex gap-2">
+                      <input
+                        type="color"
+                        value={designForm.accent_color}
+                        onChange={(e) => setDesignForm((f) => ({ ...f, accent_color: e.target.value }))}
+                        className="h-10 w-14 rounded border cursor-pointer"
+                      />
+                      <Input
+                        value={designForm.accent_color}
+                        onChange={(e) => setDesignForm((f) => ({ ...f, accent_color: e.target.value }))}
+                        className="font-mono text-sm"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label className="text-xs">Sidebar (menu)</Label>
+                    <div className="flex gap-2">
+                      <input
+                        type="color"
+                        value={designForm.sidebar_primary_color}
+                        onChange={(e) => setDesignForm((f) => ({ ...f, sidebar_primary_color: e.target.value }))}
+                        className="h-10 w-14 rounded border cursor-pointer"
+                      />
+                      <Input
+                        value={designForm.sidebar_primary_color}
+                        onChange={(e) => setDesignForm((f) => ({ ...f, sidebar_primary_color: e.target.value }))}
+                        className="font-mono text-sm"
+                      />
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <Button onClick={saveDesign} disabled={designSaving}>
+                {designSaving ? <><Loader2 className="h-4 w-4 animate-spin mr-2" />Salvando...</> : 'Salvar design'}
+              </Button>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
         {/* PLATFORMS */}
         <TabsContent value="platforms">

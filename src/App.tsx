@@ -4,6 +4,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/lib/auth";
+import { SiteDesignProvider } from "@/lib/site-design";
 import { AppLayout } from "@/components/AppLayout";
 import LandingPage from "./pages/LandingPage";
 import Index from "./pages/Index";
@@ -25,6 +26,8 @@ import Leads from "./pages/Leads";
 import Account from "./pages/Account";
 import Admin from "./pages/Admin";
 import NotFound from "./pages/NotFound";
+import Termos from "./pages/Termos";
+import Privacidade from "./pages/Privacidade";
 
 const queryClient = new QueryClient();
 
@@ -35,6 +38,7 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <AuthProvider>
+          <SiteDesignProvider>
           <Routes>
             <Route path="/" element={<LandingPage />} />
             <Route path="/auth" element={<Auth />} />
@@ -56,8 +60,15 @@ const App = () => (
             <Route path="/template-stories" element={<AppLayout><TemplateStories /></AppLayout>} />
             <Route path="/account" element={<AppLayout><Account /></AppLayout>} />
             <Route path="/admin" element={<AppLayout><Admin /></AppLayout>} />
+            <Route path="/termos" element={<Termos />} />
+            <Route path="/privacidade" element={<Privacidade />} />
+            {/* URLs com username (por último para não capturar /dashboard etc): hilinkr.com/username, /username/loja/slug, /username/c/slug */}
+            <Route path="/:username/loja/:slug" element={<HubPublic />} />
+            <Route path="/:username/c/:campaignSlug" element={<MiniSite />} />
+            <Route path="/:username" element={<LinkBioPublic />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
+          </SiteDesignProvider>
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
