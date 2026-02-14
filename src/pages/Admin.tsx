@@ -278,6 +278,20 @@ const Admin = () => {
               </p>
             </CardHeader>
             <CardContent className="space-y-6">
+              <div className="rounded-lg border border-primary/30 bg-primary/5 p-4 flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3">
+                  <Clock className="h-5 w-5 text-primary shrink-0" />
+                  <div>
+                    <p className="text-sm font-semibold">Página &quot;Em breve&quot;</p>
+                    <p className="text-xs text-muted-foreground">Quando ativo, todos os visitantes veem apenas a página de lançamento. Apenas /admin continua acessível.</p>
+                  </div>
+                </div>
+                <Switch
+                  checked={designForm.coming_soon_enabled}
+                  onCheckedChange={(checked) => setDesignForm((f) => ({ ...f, coming_soon_enabled: checked }))}
+                />
+              </div>
+
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-2">
                   <Label>Nome do site</Label>
@@ -324,22 +338,6 @@ const Admin = () => {
                   onChange={(e) => setDesignForm((f) => ({ ...f, favicon_url: e.target.value }))}
                   placeholder="https://... (ícone da aba do navegador)"
                 />
-              </div>
-
-              <div className="border-t pt-6 space-y-4">
-                <div className="flex items-center justify-between rounded-lg border border-border p-4">
-                  <div className="flex items-center gap-3">
-                    <Clock className="h-5 w-5 text-primary" />
-                    <div>
-                      <p className="text-sm font-medium">Página &quot;Em breve&quot;</p>
-                      <p className="text-xs text-muted-foreground">Quando ativo, todos os visitantes veem apenas a página de lançamento em breve. Apenas /admin continua acessível.</p>
-                    </div>
-                  </div>
-                  <Switch
-                    checked={designForm.coming_soon_enabled}
-                    onCheckedChange={(checked) => setDesignForm((f) => ({ ...f, coming_soon_enabled: checked }))}
-                  />
-                </div>
               </div>
 
               <div className="border-t pt-6">
