@@ -1,5 +1,32 @@
 {
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "trailingSlash": false,
+  "outputDirectory": "dist",
   "rewrites": [
-    { "source": "/(.*)", "destination": "/index.html" }
+    { "source": "/", "destination": "/index.html" },
+    { "source": "/auth", "destination": "/index.html" },
+    { "source": "/dashboard", "destination": "/index.html" },
+    { "source": "/products", "destination": "/index.html" },
+    { "source": "/campaigns", "destination": "/index.html" },
+    { "source": "/sales", "destination": "/index.html" },
+    { "source": "/hub", "destination": "/index.html" },
+    { "source": "/leads", "destination": "/index.html" },
+    { "source": "/link-bio", "destination": "/index.html" },
+    { "source": "/ai-copy", "destination": "/index.html" },
+    { "source": "/tutorial", "destination": "/index.html" },
+    { "source": "/venda-mais", "destination": "/index.html" },
+    { "source": "/seja-afiliado", "destination": "/index.html" },
+    { "source": "/template-stories", "destination": "/index.html" },
+    { "source": "/account", "destination": "/index.html" },
+    { "source": "/admin", "destination": "/index.html" },
+    { "source": "/termos", "destination": "/index.html" },
+    { "source": "/privacidade", "destination": "/index.html" },
+    { "source": "/c/:slug", "destination": "/index.html" },
+    { "source": "/hub/:slug", "destination": "/index.html" },
+    { "source": "/loja/:slug", "destination": "/index.html" },
+    { "source": "/bio/:slug", "destination": "/index.html" },
+    { "source": "/:username/loja/:slug", "destination": "/index.html" },
+    { "source": "/:username/c/:campaignSlug", "destination": "/index.html" },
+    { "source": "/:username", "destination": "/index.html" }
   ]
 }
