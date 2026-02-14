@@ -19,11 +19,15 @@ const Account = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
+  const USERNAME_CHANGE_DAYS = 15;
+
   const [form, setForm] = useState({
     full_name: '',
     username: '',
     phone: '',
   });
+  const [usernameChangedAt, setUsernameChangedAt] = useState<string | null>(null);
+  const [initialUsername, setInitialUsername] = useState<string | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -34,11 +38,15 @@ const Account = () => {
         .eq('user_id', user.id)
         .maybeSingle();
       if (data) {
+        const d = data as any;
+        const u = (d.username || '').trim();
         setForm({
-          full_name: (data as any).full_name || '',
-          username: (data as any).username || '',
-          phone: (data as any).phone || '',
+          full_name: d.full_name || '',
+          username: u,
+          phone: d.phone || '',
         });
+        setUsernameChangedAt(d.username_changed_at || null);
+        setInitialUsername(u || null);
       }
       setLoading(false);
     };
@@ -47,13 +55,30 @@ const Account = () => {
 
   const handleSave = async () => {
     if (!user) return;
+    const newUsername = form.username?.toLowerCase().replace(/[^a-z0-9_-]/g, '') || null;
+    const isChangingUsername = initialUsername !== null && newUsername !== initialUsername;
+
+    if (isChangingUsername && usernameChangedAt) {
+      const daysSince = (Date.now() - new Date(usernameChangedAt).getTime()) / (1000 * 60 * 60 * 24);
+      if (daysSince < USERNAME_CHANGE_DAYS) {
+        const diasRestantes = Math.ceil(USERNAME_CHANGE_DAYS - daysSince);
+        toast({
+          title: 'Troca de username bloqueada',
+          description: `Você só pode alterar o username uma vez a cada ${USERNAME_CHANGE_DAYS} dias. Tente novamente em ${diasRestantes} dia(s).`,
+          variant: 'destructive',
+        });
+        return;
+      }
+    }
+
     setSaving(true);
 
     const payload: Record<string, any> = {
       full_name: form.full_name || null,
-      username: form.username?.toLowerCase().replace(/[^a-z0-9_-]/g, '') || null,
+      username: newUsername,
       phone: form.phone || null,
     };
+    if (newUsername) payload.username_changed_at = new Date().toISOString();
 
     const { error } = await supabase
       .from('profiles')
@@ -67,6 +92,8 @@ const Account = () => {
         toast({ title: 'Erro ao salvar', description: error.message, variant: 'destructive' });
       }
     } else {
+      if (isChangingUsername) setUsernameChangedAt(new Date().toISOString());
+      setInitialUsername(newUsername);
       toast({ title: 'Perfil atualizado!' });
     }
     setSaving(false);

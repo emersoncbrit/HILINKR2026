@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
 import { AuthProvider } from "@/lib/auth";
 import { SiteDesignProvider, useSiteDesign } from "@/lib/site-design";
+import { UsernameRequiredDialog } from "@/components/UsernameRequiredDialog";
 import { AppLayout } from "@/components/AppLayout";
 import LandingPage from "./pages/LandingPage";
 import Index from "./pages/Index";
@@ -89,6 +90,7 @@ const App = () => (
         <AuthProvider>
           <SiteDesignProvider>
             <AppRoutes />
+            <UsernameRequiredDialog />
           </SiteDesignProvider>
         </AuthProvider>
       </BrowserRouter>

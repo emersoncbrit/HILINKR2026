@@ -10,11 +10,12 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Search, Package, ExternalLink, Pencil, Copy, Share2, Image, Loader2 } from 'lucide-react';
+import { Plus, Search, Package, ExternalLink, Pencil, Copy, Share2, Image, Loader2, Trash2 } from 'lucide-react';
 import { PageLoader } from '@/components/PageLoader';
 import { EmptyState } from '@/components/EmptyState';
 import { useDocumentTitle } from '@/hooks/use-document-title';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
+import { AlertDialog, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 
@@ -58,6 +59,8 @@ const Products = () => {
   const [commissionDisplay, setCommissionDisplay] = useState('');
   const [adminPlatforms, setAdminPlatforms] = useState<string[]>([]);
   const [adminCategories, setAdminCategories] = useState<string[]>([]);
+  const [productToDelete, setProductToDelete] = useState<Product | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const [form, setForm] = useState({
     name: '', affiliate_link: '', original_link: '', image_url: '', platform: '', category: '', price: 0, commission_estimate: 0, status: 'active',
@@ -186,6 +189,20 @@ const Products = () => {
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
     toast({ title: `${label} copiado!` });
+  };
+
+  const handleDelete = async () => {
+    if (!productToDelete || !user) return;
+    setDeleting(true);
+    const { error } = await supabase.from('products').delete().eq('id', productToDelete.id).eq('user_id', user.id);
+    setDeleting(false);
+    setProductToDelete(null);
+    if (error) {
+      toast({ title: 'Erro ao excluir', description: error.message, variant: 'destructive' });
+      return;
+    }
+    toast({ title: 'Produto excluído' });
+    void queryClient.invalidateQueries({ queryKey: ['products', user.id] });
   };
 
   const shareLink = (link: string, platform: 'whatsapp' | 'telegram') => {
@@ -380,6 +397,24 @@ const Products = () => {
             </div>
           </DialogContent>
         </Dialog>
+
+        <AlertDialog open={!!productToDelete} onOpenChange={(open) => !open && setProductToDelete(null)}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Excluir produto?</AlertDialogTitle>
+              <AlertDialogDescription>
+                {productToDelete && <>O produto &quot;{productToDelete.name}&quot; será removido. Esta ação não pode ser desfeita.</>}
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel disabled={deleting}>Cancelar</AlertDialogCancel>
+              <Button variant="destructive" disabled={deleting} onClick={() => void handleDelete()}>
+                {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4 mr-1" />}
+                Excluir
+              </Button>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
 
       {/* Filtros */}
@@ -462,6 +497,9 @@ const Products = () => {
                     <DropdownMenuContent>
                       <DropdownMenuItem onClick={() => shareLink(p.affiliate_link, 'whatsapp')}>WhatsApp</DropdownMenuItem>
                       <DropdownMenuItem onClick={() => shareLink(p.affiliate_link, 'telegram')}>Telegram</DropdownMenuItem>
+                      <DropdownMenuItem onClick={() => setProductToDelete(p)} className="text-destructive focus:text-destructive">
+                        <Trash2 className="h-3 w-3 mr-1" /> Excluir
+                      </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                   <a href={p.affiliate_link} target="_blank" rel="noopener noreferrer" className="ml-auto">
