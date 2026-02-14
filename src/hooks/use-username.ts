@@ -2,26 +2,32 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/lib/auth';
 
+export const PROFILE_USERNAME_QUERY_KEY = ['profile-username'] as const;
+
+export type ProfileUsernameRow = { username: string | null; username_changed_at: string | null } | null;
+
+export async function fetchProfileUsername(userId: string): Promise<ProfileUsernameRow> {
+  const { data } = await supabase
+    .from('profiles')
+    .select('username, username_changed_at')
+    .eq('user_id', userId)
+    .maybeSingle();
+  return data as ProfileUsernameRow;
+}
+
 /**
  * Retorna o username do usuário logado (profiles).
  * Usado para montar URLs: hilinkr.com/username, hilinkr.com/username/loja/slug, etc.
  */
 export function useUsername() {
   const { user } = useAuth();
-  const { data: username, isLoading } = useQuery({
-    queryKey: ['profile-username', user?.id],
-    queryFn: async () => {
-      if (!user?.id) return null;
-      const { data } = await supabase
-        .from('profiles')
-        .select('username')
-        .eq('user_id', user.id)
-        .maybeSingle();
-      return (data as { username: string | null } | null)?.username?.trim() || null;
-    },
+  const { data: row, isLoading } = useQuery({
+    queryKey: [...PROFILE_USERNAME_QUERY_KEY, user?.id],
+    queryFn: () => fetchProfileUsername(user!.id),
     enabled: !!user?.id,
   });
-  return { username: username || null, isLoading };
+  const username = row?.username?.trim() || null;
+  return { username, isLoading };
 }
 
 /**

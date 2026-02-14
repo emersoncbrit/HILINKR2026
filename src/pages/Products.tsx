@@ -10,7 +10,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
-import { Plus, Search, Package, ExternalLink, Pencil, Copy, Share2, Image, Loader2, Trash2 } from 'lucide-react';
+import { Plus, Search, Package, Pencil, Copy, Share2, Image, Loader2, Trash2 } from 'lucide-react';
 import { PageLoader } from '@/components/PageLoader';
 import { EmptyState } from '@/components/EmptyState';
 import { useDocumentTitle } from '@/hooks/use-document-title';
@@ -497,14 +497,11 @@ const Products = () => {
                     <DropdownMenuContent>
                       <DropdownMenuItem onClick={() => shareLink(p.affiliate_link, 'whatsapp')}>WhatsApp</DropdownMenuItem>
                       <DropdownMenuItem onClick={() => shareLink(p.affiliate_link, 'telegram')}>Telegram</DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => setProductToDelete(p)} className="text-destructive focus:text-destructive">
-                        <Trash2 className="h-3 w-3 mr-1" /> Excluir
-                      </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
-                  <a href={p.affiliate_link} target="_blank" rel="noopener noreferrer" className="ml-auto">
-                    <Button variant="ghost" size="sm" className="text-xs"><ExternalLink className="h-3 w-3" /></Button>
-                  </a>
+                  <Button variant="ghost" size="sm" onClick={() => setProductToDelete(p)} className="text-xs text-destructive hover:text-destructive">
+                    <Trash2 className="h-3 w-3 mr-1" />Excluir
+                  </Button>
                 </div>
               </CardContent>
             </Card>

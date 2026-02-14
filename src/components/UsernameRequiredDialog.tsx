@@ -1,6 +1,7 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/lib/auth";
+import { PROFILE_USERNAME_QUERY_KEY, fetchProfileUsername } from "@/hooks/use-username";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -26,16 +27,8 @@ export function UsernameRequiredDialog() {
   const [saving, setSaving] = useState(false);
 
   const { data: profile, isLoading } = useQuery({
-    queryKey: ["profile-username", user?.id],
-    queryFn: async () => {
-      if (!user?.id) return null;
-      const { data } = await supabase
-        .from("profiles")
-        .select("username, username_changed_at")
-        .eq("user_id", user.id)
-        .maybeSingle();
-      return data as { username: string | null; username_changed_at: string | null } | null;
-    },
+    queryKey: [...PROFILE_USERNAME_QUERY_KEY, user?.id],
+    queryFn: () => fetchProfileUsername(user!.id),
     enabled: !!user?.id,
   });
 
@@ -70,7 +63,9 @@ export function UsernameRequiredDialog() {
       }
     } else {
       toast({ title: "Username definido!" });
-      void queryClient.invalidateQueries({ queryKey: ["profile-username", user.id] });
+      const updated = { username: normalized, username_changed_at: new Date().toISOString() };
+      queryClient.setQueryData([...PROFILE_USERNAME_QUERY_KEY, user.id], updated);
+      queryClient.invalidateQueries({ queryKey: PROFILE_USERNAME_QUERY_KEY });
     }
     setSaving(false);
   };

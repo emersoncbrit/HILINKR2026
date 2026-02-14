@@ -9,7 +9,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
 import { useUsername } from '@/hooks/use-username';
 import { BASE_URL } from '@/lib/reserved-usernames';
-import { Copy, ExternalLink, Plus, Trash2, GripVertical, Save, Eye, Upload, Instagram, Youtube, Twitter, Facebook, Music2 } from 'lucide-react';
+import { Copy, Plus, Trash2, GripVertical, Save, Eye, Upload, Instagram, Youtube, Twitter, Facebook, Music2 } from 'lucide-react';
 
 interface LinkItem {
   id: string;
@@ -43,7 +43,6 @@ interface LinkBioConfig {
   theme_colors: ThemeColors;
   links: LinkItem[];
   social_links: SocialLinks;
-  slug: string;
 }
 
 const TEMPLATES = [
@@ -69,7 +68,6 @@ const LinkBio = () => {
     theme_colors: TEMPLATES[1].colors,
     links: [],
     social_links: {},
-    slug: '',
   });
 
   useEffect(() => {
@@ -91,12 +89,7 @@ const LinkBio = () => {
           theme_colors: (data.theme_colors as unknown as ThemeColors) || TEMPLATES[1].colors,
           links: (data.links as unknown as LinkItem[]) || [],
           social_links: (data.social_links as unknown as SocialLinks) || {},
-          slug: data.slug,
         });
-      } else {
-        // Generate default slug from user email
-        const defaultSlug = user.email?.split('@')[0]?.replace(/[^a-z0-9]/gi, '') || `user-${Date.now()}`;
-        setConfig(prev => ({ ...prev, slug: defaultSlug }));
       }
       setLoading(false);
     };
@@ -161,7 +154,6 @@ const LinkBio = () => {
       theme_colors: config.theme_colors,
       links: config.links,
       social_links: config.social_links,
-      slug: config.slug,
     };
 
     if (config.id) {
@@ -178,7 +170,7 @@ const LinkBio = () => {
 
   const { username } = useUsername();
   const origin = typeof window !== 'undefined' ? window.location.origin : BASE_URL;
-  const publicUrl = username ? `${origin}/${username}` : `${origin}/bio/${config.slug}`;
+  const publicUrl = username ? `${origin}/${username}` : '';
 
   if (loading) {
     return <div className="flex items-center justify-center h-64"><div className="h-8 w-8 animate-spin rounded-full border-2 border-primary border-t-transparent" /></div>;
@@ -193,7 +185,7 @@ const LinkBio = () => {
           <p className="text-sm text-muted-foreground">Personalize sua página de links</p>
         </div>
         <div className="flex gap-2">
-          {config.id && (
+          {config.id && username && (
             <Button variant="outline" size="sm" onClick={() => window.open(publicUrl, '_blank')}>
               <Eye className="h-4 w-4 mr-1" />Ver
             </Button>
@@ -209,14 +201,17 @@ const LinkBio = () => {
         <Card className="glass-card">
           <CardContent className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="min-w-0">
-              <p className="text-sm font-medium">Link Bio: <a href={publicUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline break-all">{publicUrl} <ExternalLink className="inline h-3 w-3" /></a></p>
-              {!username && (
-                <p className="text-xs text-muted-foreground mt-1">Defina seu username em Minha Conta para usar o link hilinkr.com/seu-usuario</p>
+              {username ? (
+                <p className="text-sm font-medium">Link Bio: <a href={publicUrl} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline break-all">{publicUrl}</a></p>
+              ) : (
+                <p className="text-sm font-medium text-muted-foreground">Link Bio: defina seu username em Minha Conta para usar o link hilinkr.com/seu-usuario</p>
               )}
             </div>
-            <Button size="sm" variant="secondary" onClick={() => { navigator.clipboard.writeText(publicUrl); toast({ title: 'Link copiado!' }); }} className="shrink-0">
-              <Copy className="h-4 w-4 mr-1" />Copiar
-            </Button>
+            {username && (
+              <Button size="sm" variant="secondary" onClick={() => { navigator.clipboard.writeText(publicUrl); toast({ title: 'Link copiado!' }); }} className="shrink-0">
+                <Copy className="h-4 w-4 mr-1" />Copiar
+              </Button>
+            )}
           </CardContent>
         </Card>
       )}
@@ -253,10 +248,6 @@ const LinkBio = () => {
               <div>
                 <Label>Apresentação</Label>
                 <Textarea value={config.bio} onChange={e => setConfig(p => ({ ...p, bio: e.target.value }))} placeholder="Cupons de desconto e ofertas" rows={2} />
-              </div>
-              <div>
-                <Label>Slug (URL)</Label>
-                <Input value={config.slug} onChange={e => setConfig(p => ({ ...p, slug: e.target.value.replace(/[^a-z0-9-]/gi, '').toLowerCase() }))} placeholder="meu-perfil" />
               </div>
             </CardContent>
           </Card>
