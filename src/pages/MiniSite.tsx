@@ -37,12 +37,14 @@ const MiniSite = () => {
   const { slug, username, campaignSlug } = useParams<{ slug?: string; username?: string; campaignSlug?: string }>();
   const { toast } = useToast();
   const [campaign, setCampaign] = useState<CampaignData | null>(null);
+  const [productFallback, setProductFallback] = useState<{ affiliate_link: string; name: string; image_url: string | null; price: number | null } | null>(null);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
   const [email, setEmail] = useState('');
   const [submittingEmail, setSubmittingEmail] = useState(false);
 
   const effectiveSlug = campaignSlug || slug;
+  const product = campaign?.products ?? productFallback;
 
   useEffect(() => {
     const fetchCampaign = async () => {
@@ -59,21 +61,33 @@ const MiniSite = () => {
         query = query.eq('user_id', userId);
       }
       const { data, error } = await query.maybeSingle();
-      if (error || !data) { setNotFound(true); }
-      else { setCampaign(data as unknown as CampaignData); }
+      if (error || !data) { setNotFound(true); setLoading(false); return; }
+      const camp = data as unknown as CampaignData;
+      setCampaign(camp);
+      if (camp.product_id && !camp.products) {
+        const { data: prod } = await supabase.from('products').select('affiliate_link, name, image_url, price').eq('id', camp.product_id).maybeSingle();
+        if (prod) setProductFallback(prod as { affiliate_link: string; name: string; image_url: string | null; price: number | null });
+      }
       setLoading(false);
     };
     fetchCampaign();
   }, [effectiveSlug, username]);
 
   const handleClick = async () => {
-    if (!campaign || !campaign.products) return;
-    await supabase.from('clicks').insert({
-      campaign_id: campaign.id,
-      product_id: campaign.product_id,
-      owner_id: campaign.user_id,
-    });
-    window.location.href = campaign.products.affiliate_link;
+    if (!campaign) return;
+    const link = product?.affiliate_link?.trim();
+    if (!link) {
+      toast({ title: 'Link do produto não configurado', variant: 'destructive' });
+      return;
+    }
+    try {
+      await supabase.from('clicks').insert({
+        campaign_id: campaign.id,
+        product_id: campaign.product_id,
+        owner_id: campaign.user_id,
+      });
+    } catch {}
+    window.open(link, '_blank', 'noopener,noreferrer');
   };
 
   const handleEmailSubmit = async () => {
@@ -107,7 +121,6 @@ const MiniSite = () => {
     );
   }
 
-  const product = campaign.products;
   const price = product?.price;
   const displayImage = campaign.image_url || product?.image_url;
   const hasImage = !!displayImage;

@@ -101,6 +101,14 @@ const LinkBioPublic = () => {
     }
   };
 
+  const normalizeLinkUrl = (url: string): string => {
+    const u = (url || '').trim();
+    if (!u) return '#';
+    if (u.startsWith('http://') || u.startsWith('https://')) return u;
+    if (u.startsWith('/')) return u;
+    return `https://${u}`;
+  };
+
   const bgStyle: React.CSSProperties = template === 'gradient'
     ? { background: `linear-gradient(135deg, ${colors.background}, ${colors.primary}30)`, color: colors.text }
     : { background: colors.background, color: colors.text };
@@ -136,22 +144,25 @@ const LinkBioPublic = () => {
 
           {/* Links */}
           <div className="w-full mt-8 space-y-3">
-            {links.filter(l => l.title && l.url).map(link => (
-              <a
-                key={link.id}
-                href={link.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="block w-full py-3.5 px-5 rounded-xl text-center font-medium text-sm transition-all hover:scale-[1.03] hover:shadow-lg"
-                style={{
-                  background: colors.cardBg,
-                  color: colors.text,
-                  border: `1px solid ${colors.primary}40`,
-                }}
-              >
-                {link.title}
-              </a>
-            ))}
+            {links.filter(l => l.title && l.url).map(link => {
+              const href = normalizeLinkUrl(link.url);
+              return (
+                <a
+                  key={link.id}
+                  href={href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block w-full py-3.5 px-5 rounded-xl text-center font-medium text-sm transition-all hover:scale-[1.03] hover:shadow-lg"
+                  style={{
+                    background: colors.cardBg,
+                    color: colors.text,
+                    border: `1px solid ${colors.primary}40`,
+                  }}
+                >
+                  {link.title}
+                </a>
+              );
+            })}
           </div>
 
           {/* Social Icons */}

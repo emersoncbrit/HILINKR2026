@@ -53,6 +53,7 @@ const Products = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [scraping, setScraping] = useState(false);
+  const [pastingImage, setPastingImage] = useState(false);
   const [priceDisplay, setPriceDisplay] = useState('');
   const [commissionDisplay, setCommissionDisplay] = useState('');
   const [adminPlatforms, setAdminPlatforms] = useState<string[]>([]);
@@ -96,31 +97,36 @@ const Products = () => {
     setDialogOpen(true);
   };
 
-  const scrapeUrl = async (url: string) => {
-    if (!url || (!url.startsWith('http://') && !url.startsWith('https://'))) return;
+  const scrapeUrl = async (url: string, forceFillAll = false) => {
+    const u = (url || '').trim();
+    if (!u) return;
+    const withProtocol = u.startsWith('http') ? u : `https://${u}`;
     setScraping(true);
     try {
       const { data, error } = await supabase.functions.invoke('scrape-product', {
-        body: { url },
+        body: { url: withProtocol },
       });
       if (error) throw error;
       if (data?.success && data?.data) {
         const d = data.data;
-        const updates: Partial<typeof form> = {};
-        if (d.title && !form.name) updates.name = d.title;
-        if (d.image && !form.image_url) updates.image_url = d.image;
-        if (d.platform && !form.platform) updates.platform = d.platform;
-        if (d.price && !form.price) {
-          updates.price = d.price;
-          setPriceDisplay(formatBRL(d.price));
-        }
-        if (Object.keys(updates).length > 0) {
-          setForm((prev) => ({ ...prev, ...updates }));
-          toast({ title: 'Dados preenchidos automaticamente!' });
-        }
+        setForm((prev) => {
+          const updates: Partial<typeof form> = {};
+          if (d.title && (forceFillAll || !prev.name)) updates.name = d.title;
+          if (d.image && (forceFillAll || !prev.image_url)) updates.image_url = d.image;
+          if (d.platform) updates.platform = d.platform;
+          if (d.price != null && d.price > 0) {
+            updates.price = d.price;
+            setPriceDisplay(formatBRL(d.price));
+          }
+          return { ...prev, ...updates };
+        });
+        toast({ title: 'Dados preenchidos automaticamente!' });
+      } else if (!data?.success && data?.error) {
+        toast({ title: 'Link não suportado', description: 'Preencha nome e imagem manualmente.', variant: 'destructive' });
       }
     } catch (err) {
       console.error('Scrape failed:', err);
+      toast({ title: 'Não foi possível preencher do link', description: 'Verifique o link e preencha manualmente.', variant: 'destructive' });
     } finally {
       setScraping(false);
     }
@@ -145,6 +151,36 @@ const Products = () => {
     setDialogOpen(false);
     resetForm();
     void queryClient.invalidateQueries({ queryKey: ['products', user?.id] });
+  };
+
+  const pasteImageFromClipboard = async () => {
+    if (!user) return;
+    setPastingImage(true);
+    try {
+      const items = await navigator.clipboard.read();
+      for (const item of items) {
+        const type = item.types.find((t) => t.startsWith('image/'));
+        if (!type) continue;
+        const blob = await item.getType(type);
+        const ext = type.replace('image/', '') === 'jpeg' ? 'jpg' : type.replace('image/', '');
+        const path = `${user.id}/products/${crypto.randomUUID()}.${ext}`;
+        const { error } = await supabase.storage.from('store-assets').upload(path, blob, { upsert: true, contentType: type });
+        if (error) throw error;
+        const { data: urlData } = supabase.storage.from('store-assets').getPublicUrl(path);
+        setForm((prev) => ({ ...prev, image_url: urlData.publicUrl }));
+        toast({ title: 'Imagem colada!' });
+        break;
+      }
+      if (!items.length) toast({ title: 'Nenhuma imagem no clipboard', variant: 'destructive' });
+    } catch (err) {
+      if ((err as Error).name === 'NotAllowedError') {
+        toast({ title: 'Permita acesso à área de transferência', variant: 'destructive' });
+      } else {
+        toast({ title: 'Não foi possível colar a imagem', variant: 'destructive' });
+      }
+    } finally {
+      setPastingImage(false);
+    }
   };
 
   const copyToClipboard = (text: string, label: string) => {
@@ -199,16 +235,26 @@ const Products = () => {
             <div className="space-y-4">
               <div>
                 <Label>Link Original do Produto</Label>
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-wrap items-center">
                   <Input
                     value={form.original_link}
                     onChange={(e) => setForm({ ...form, original_link: e.target.value })}
                     onBlur={(e) => scrapeUrl(e.target.value)}
-                    placeholder="https://... cola o link e preenchemos automaticamente"
+                    onPaste={(e) => {
+                      const pasted = e.clipboardData.getData('text').trim();
+                      if (pasted && (pasted.startsWith('http') || pasted.includes('.'))) {
+                        setForm((prev) => ({ ...prev, original_link: pasted }));
+                        setTimeout(() => scrapeUrl(pasted), 100);
+                      }
+                    }}
+                    placeholder="https://... cole o link do produto"
+                    className="flex-1 min-w-[200px]"
                   />
-                  {scraping && <Loader2 className="h-4 w-4 animate-spin mt-2.5 shrink-0 text-primary" />}
+                  <Button type="button" variant="outline" size="sm" disabled={scraping || (!form.original_link && !form.affiliate_link)} onClick={() => scrapeUrl(form.original_link || form.affiliate_link, true)}>
+                    {scraping ? <Loader2 className="h-4 w-4 animate-spin" /> : 'Preencher do link'}
+                  </Button>
                 </div>
-                <p className="text-xs text-muted-foreground mt-1">Cole o link para preencher nome, imagem, plataforma e preço automaticamente</p>
+                <p className="text-xs text-muted-foreground mt-1">Cole o link (ou use o botão) para preencher nome, imagem, plataforma e preço automaticamente</p>
               </div>
               <div>
                 <Label>Link de Afiliado *</Label>
@@ -216,6 +262,14 @@ const Products = () => {
                   value={form.affiliate_link}
                   onChange={(e) => setForm({ ...form, affiliate_link: e.target.value })}
                   onBlur={(e) => { if (!form.original_link) scrapeUrl(e.target.value); }}
+                  onPaste={(e) => {
+                    if (form.original_link) return;
+                    const pasted = e.clipboardData.getData('text').trim();
+                    if (pasted && (pasted.startsWith('http') || pasted.includes('.'))) {
+                      setForm((prev) => ({ ...prev, affiliate_link: pasted }));
+                      setTimeout(() => scrapeUrl(pasted), 100);
+                    }
+                  }}
                   placeholder="https://... seu link de afiliado"
                 />
               </div>
@@ -224,8 +278,15 @@ const Products = () => {
                 <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Nome do produto" />
               </div>
               <div>
-                <Label>URL da Imagem (opcional)</Label>
-                <Input value={form.image_url} onChange={(e) => setForm({ ...form, image_url: e.target.value })} placeholder="https://... imagem do produto" />
+                <Label>Imagem do produto (opcional)</Label>
+                <div className="flex gap-2 flex-wrap items-center">
+                  <Input value={form.image_url} onChange={(e) => setForm({ ...form, image_url: e.target.value })} placeholder="https://... ou cole com o botão abaixo" className="flex-1 min-w-0" />
+                  <Button type="button" variant="outline" size="sm" disabled={pastingImage} onClick={pasteImageFromClipboard}>
+                    {pastingImage ? <Loader2 className="h-4 w-4 animate-spin" /> : <Image className="h-4 w-4" />}
+                    Colar imagem
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">Cole a URL ou use &quot;Colar imagem&quot; se copiou uma imagem em outro lugar</p>
                 {form.image_url && (
                   <div className="mt-2 rounded-md overflow-hidden border border-border h-32 w-full">
                     <img src={form.image_url} alt="Preview" className="h-full w-full object-cover" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />

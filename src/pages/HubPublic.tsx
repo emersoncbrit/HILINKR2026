@@ -196,15 +196,16 @@ const HubPublic = () => {
   const activeSocials = Object.entries(config.social_links).filter(([, v]) => v?.trim());
 
   const handleProductClick = async (product: Product) => {
-    // Track click
+    const link = product.affiliate_link?.trim();
+    if (!link) return;
     try {
       await supabase.from('clicks').insert({
         product_id: product.id,
         owner_id: config.user_id,
-        campaign_id: product.id, // using product_id as campaign reference for hub clicks
+        campaign_id: product.id,
       });
     } catch {}
-    window.open(product.affiliate_link, '_blank');
+    window.open(link, '_blank', 'noopener,noreferrer');
   };
 
   const templateBg = config.store_template === 'bold' || config.store_template === 'neon'
