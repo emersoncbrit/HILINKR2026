@@ -1,7 +1,13 @@
+import { useEffect } from 'react';
 import { useSiteDesign } from '@/lib/site-design';
 
 const EmBreve = () => {
   const { logoUrl, siteNameFallback } = useSiteDesign();
+
+  useEffect(() => {
+    document.title = `Em breve — ${siteNameFallback}`;
+    return () => { document.title = ''; };
+  }, [siteNameFallback]);
 
   return (
     <div className="min-h-screen min-h-screen-safe flex flex-col items-center justify-center bg-background text-foreground px-4 safe-area-pb safe-area-pt">

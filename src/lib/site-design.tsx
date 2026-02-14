@@ -92,10 +92,12 @@ export function SiteDesignProvider({ children }: { children: ReactNode }) {
   const fetchConfig = async () => {
     const { data, error } = await supabase
       .from('site_design_config')
-      .select('*')
+      .select('id, logo_url, favicon_url, site_name, primary_color, secondary_color, accent_color, sidebar_primary_color, coming_soon_enabled, updated_at')
       .eq('id', 'default')
       .maybeSingle();
-    if (!error && data) setConfig(data as SiteDesignConfig);
+    if (!error && data) {
+      setConfig({ ...DEFAULT_CONFIG, ...data } as SiteDesignConfig);
+    }
     setLoading(false);
   };
 
@@ -107,7 +109,7 @@ export function SiteDesignProvider({ children }: { children: ReactNode }) {
   const siteName = config.site_name?.trim() ?? '';
   const siteNameFallback = siteName || 'Hilinkr';
   const faviconUrl = config.favicon_url?.trim() || null;
-  const comingSoonEnabled = config.coming_soon_enabled === true;
+  const comingSoonEnabled = Boolean(config.coming_soon_enabled);
 
   useEffect(() => {
     if (loading) return;
