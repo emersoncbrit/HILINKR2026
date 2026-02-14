@@ -5,7 +5,6 @@ import { useAuth } from '@/lib/auth';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -235,17 +234,17 @@ const Products = () => {
   };
 
   return (
-    <div className="space-y-6 max-w-6xl">
+    <div className="space-y-4 sm:space-y-6 max-w-6xl w-full">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold">Central de Produtos</h1>
+        <div className="min-w-0">
+          <h1 className="text-lg sm:text-2xl font-bold truncate">Central de Produtos</h1>
           <p className="text-sm text-muted-foreground">Gerencie seus produtos de afiliado</p>
         </div>
         <Dialog open={dialogOpen} onOpenChange={(o) => { setDialogOpen(o); if (!o) resetForm(); }}>
           <DialogTrigger asChild>
             <Button className="w-full sm:w-auto"><Plus className="h-4 w-4 mr-2" />Adicionar Produto</Button>
           </DialogTrigger>
-          <DialogContent className="max-w-lg max-h-[85vh] overflow-y-auto">
+          <DialogContent className="max-w-lg max-h-[85dvh] overflow-y-auto w-[calc(100vw-1.5rem)] max-w-[calc(100vw-1.5rem)] sm:w-auto sm:max-w-lg safe-area-pb">
             <DialogHeader>
               <DialogTitle>{editingProduct ? 'Editar Produto' : 'Novo Produto'}</DialogTitle>
             </DialogHeader>
@@ -418,14 +417,14 @@ const Products = () => {
       </div>
 
       {/* Filtros */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
+      <div className="flex flex-col gap-3">
+        <div className="relative w-full">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-          <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar produtos..." className="pl-9" />
+          <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar produtos..." className="w-full pl-9" />
         </div>
-        <div className="flex gap-3">
+        <div className="flex flex-wrap gap-2 sm:gap-3">
           <Select value={filterStatus} onValueChange={setFilterStatus}>
-            <SelectTrigger className="w-full sm:w-[140px]"><SelectValue placeholder="Status" /></SelectTrigger>
+            <SelectTrigger className="w-full min-w-0 sm:w-[140px]"><SelectValue placeholder="Status" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Todos</SelectItem>
               <SelectItem value="active">Ativo</SelectItem>
@@ -434,7 +433,7 @@ const Products = () => {
             </SelectContent>
           </Select>
           <Select value={filterCategory} onValueChange={setFilterCategory}>
-            <SelectTrigger className="w-full sm:w-[140px]"><SelectValue placeholder="Categoria" /></SelectTrigger>
+            <SelectTrigger className="w-full min-w-0 sm:w-[140px]"><SelectValue placeholder="Categoria" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Todas</SelectItem>
               {categories.map((c) => <SelectItem key={c} value={c}>{c}</SelectItem>)}
@@ -458,49 +457,56 @@ const Products = () => {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
           {filtered.map((p) => (
-            <Card key={p.id} className="glass-card hover:border-primary/30 transition-colors group overflow-hidden">
-              {p.image_url ? (
-                <div className="h-36 w-full overflow-hidden border-b border-border">
+            <Card key={p.id} className="overflow-hidden rounded-xl border border-border/80 bg-card shadow-sm transition-shadow hover:shadow-md">
+              {/* Imagem */}
+              <div className="relative h-40 w-full bg-muted/50">
+                {p.image_url ? (
                   <img src={p.image_url} alt={p.name} className="h-full w-full object-cover" />
+                ) : (
+                  <div className="flex h-full items-center justify-center">
+                    <Image className="h-12 w-12 text-muted-foreground/25" />
+                  </div>
+                )}
+                <span className="absolute right-2 top-2 rounded-full bg-black/60 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-white backdrop-blur-sm">
+                  {statusLabel(p.status)}
+                </span>
+              </div>
+              <CardContent className="p-4">
+                <h3 className="line-clamp-2 font-semibold text-foreground leading-snug">{p.name}</h3>
+                <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+                  {p.platform && <span>{p.platform}</span>}
+                  {p.platform && p.category && <span aria-hidden>·</span>}
+                  {p.category && <span>{p.category}</span>}
                 </div>
-              ) : (
-                <div className="h-24 w-full flex items-center justify-center bg-muted/30 border-b border-border">
-                  <Image className="h-8 w-8 text-muted-foreground/30" />
+                <div className="mt-3 flex items-baseline gap-2">
+                  {p.price > 0 && <span className="font-semibold text-foreground">R$ {formatBRL(p.price)}</span>}
+                  {p.commission_estimate > 0 && (
+                    <span className="text-xs text-muted-foreground">{p.commission_estimate}% comissão</span>
+                  )}
                 </div>
-              )}
-              <CardContent className="p-5">
-                <div className="flex items-start justify-between mb-3">
-                  <h3 className="font-semibold text-sm leading-tight">{p.name}</h3>
-                  <Badge variant="outline" className={statusColor(p.status)}>{statusLabel(p.status)}</Badge>
-                </div>
-                {p.platform && <p className="text-xs text-muted-foreground mb-1">{p.platform}</p>}
-                {p.category && <Badge variant="secondary" className="text-xs mb-3">{p.category}</Badge>}
-                <div className="flex items-center gap-4 text-xs text-muted-foreground mt-3">
-                  {p.price > 0 && <span>R$ {formatBRL(p.price)}</span>}
-                  {p.commission_estimate > 0 && <span>{p.commission_estimate}% com.</span>}
-                </div>
-                <div className="flex items-center gap-1 mt-4 pt-3 border-t border-border flex-wrap">
-                  <Button variant="ghost" size="sm" onClick={() => openEdit(p)} className="text-xs">
-                    <Pencil className="h-3 w-3 mr-1" />Editar
+                {/* Ações */}
+                <div className="mt-4 grid grid-cols-2 gap-1.5 rounded-lg bg-muted/40 p-2 sm:flex sm:flex-wrap">
+                  <Button variant="ghost" size="sm" onClick={() => openEdit(p)} className="h-9 min-h-[44px] justify-center sm:h-8 sm:min-h-0 sm:flex-1 text-xs text-foreground hover:bg-background/80">
+                    <Pencil className="mr-1.5 h-3.5 w-3.5 shrink-0" /> Editar
                   </Button>
-                  <Button variant="ghost" size="sm" onClick={() => copyToClipboard(p.affiliate_link, 'Link de afiliado')} className="text-xs">
-                    <Copy className="h-3 w-3 mr-1" />Copiar
+                  <Button variant="ghost" size="sm" onClick={() => copyToClipboard(p.affiliate_link, 'Link de afiliado')} className="h-9 min-h-[44px] justify-center sm:h-8 sm:min-h-0 sm:flex-1 text-xs text-foreground hover:bg-background/80">
+                    <Copy className="mr-1.5 h-3.5 w-3.5 shrink-0" /> Copiar
                   </Button>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="sm" className="text-xs">
-                        <Share2 className="h-3 w-3 mr-1" />Compartilhar
+                      <Button variant="ghost" size="sm" className="h-9 min-h-[44px] justify-center sm:h-8 sm:min-h-0 sm:flex-1 text-xs text-foreground hover:bg-background/80">
+                        <Share2 className="mr-1.5 h-3.5 w-3.5 shrink-0" /> Compartilhar
                       </Button>
                     </DropdownMenuTrigger>
-                    <DropdownMenuContent>
+                    <DropdownMenuContent align="end">
                       <DropdownMenuItem onClick={() => shareLink(p.affiliate_link, 'whatsapp')}>WhatsApp</DropdownMenuItem>
                       <DropdownMenuItem onClick={() => shareLink(p.affiliate_link, 'telegram')}>Telegram</DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
-                  <Button variant="ghost" size="sm" onClick={() => setProductToDelete(p)} className="text-xs text-destructive hover:text-destructive">
-                    <Trash2 className="h-3 w-3 mr-1" />Excluir
+                  <Button variant="ghost" size="sm" onClick={() => setProductToDelete(p)} className="h-9 min-h-[44px] justify-center sm:h-8 sm:min-h-0 sm:flex-1 text-xs text-destructive hover:bg-destructive/10 hover:text-destructive">
+                    <Trash2 className="mr-1.5 h-3.5 w-3.5 shrink-0" /> Excluir
                   </Button>
                 </div>
               </CardContent>

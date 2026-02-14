@@ -5,6 +5,15 @@
 @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
 
 @layer base {
+  html {
+    overflow-x: hidden;
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    overflow-x: hidden;
+    min-height: 100vh;
+    min-height: 100dvh;
+  }
   :root {
     --background: 0 0% 98%;
     --foreground: 220 20% 10%;
