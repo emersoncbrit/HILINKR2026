@@ -11,8 +11,9 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
+import { Switch } from '@/components/ui/switch';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Plus, Trash2, Users, Package, Megaphone, Store, Mail, Link2, Layout, GraduationCap, ShoppingBag, Users2, Tag, Monitor, Shield, Palette, Upload, Loader2 } from 'lucide-react';
+import { Plus, Trash2, Users, Package, Megaphone, Store, Mail, Link2, Layout, GraduationCap, ShoppingBag, Users2, Tag, Monitor, Shield, Palette, Upload, Loader2, Clock } from 'lucide-react';
 import { useSiteDesign } from '@/lib/site-design';
 import type { SiteDesignConfig } from '@/lib/site-design';
 
@@ -46,6 +47,7 @@ const Admin = () => {
     secondary_color: '#e8f5e0',
     accent_color: '#58c411',
     sidebar_primary_color: '#58c411',
+    coming_soon_enabled: false,
   });
 
   // Form states
@@ -66,6 +68,7 @@ const Admin = () => {
         secondary_color: designConfig.secondary_color || '#e8f5e0',
         accent_color: designConfig.accent_color || '#58c411',
         sidebar_primary_color: designConfig.sidebar_primary_color || designConfig.primary_color || '#58c411',
+        coming_soon_enabled: designConfig.coming_soon_enabled === true,
       });
     }
   }, [designConfig]);
@@ -213,6 +216,7 @@ const Admin = () => {
         secondary_color: designForm.secondary_color.trim() || '#e8f5e0',
         accent_color: designForm.accent_color.trim() || '#58c411',
         sidebar_primary_color: designForm.sidebar_primary_color.trim() || designForm.primary_color.trim() || '#58c411',
+        coming_soon_enabled: designForm.coming_soon_enabled,
         updated_at: new Date().toISOString(),
       };
       const { error } = await supabase
@@ -320,6 +324,22 @@ const Admin = () => {
                   onChange={(e) => setDesignForm((f) => ({ ...f, favicon_url: e.target.value }))}
                   placeholder="https://... (ícone da aba do navegador)"
                 />
+              </div>
+
+              <div className="border-t pt-6 space-y-4">
+                <div className="flex items-center justify-between rounded-lg border border-border p-4">
+                  <div className="flex items-center gap-3">
+                    <Clock className="h-5 w-5 text-primary" />
+                    <div>
+                      <p className="text-sm font-medium">Página &quot;Em breve&quot;</p>
+                      <p className="text-xs text-muted-foreground">Quando ativo, todos os visitantes veem apenas a página de lançamento em breve. Apenas /admin continua acessível.</p>
+                    </div>
+                  </div>
+                  <Switch
+                    checked={designForm.coming_soon_enabled}
+                    onCheckedChange={(checked) => setDesignForm((f) => ({ ...f, coming_soon_enabled: checked }))}
+                  />
+                </div>
               </div>
 
               <div className="border-t pt-6">

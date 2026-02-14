@@ -106,9 +106,17 @@
     @apply border-border;
   }
 
+  html {
+    /* Safe area para notches e barras em PWA/mobile */
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
+  }
+
   body {
     @apply bg-background text-foreground antialiased;
     font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+    padding-top: env(safe-area-inset-top);
+    padding-bottom: env(safe-area-inset-bottom);
   }
 
   h1 {
@@ -154,5 +162,23 @@
   /* Keep backward compat alias */
   .glow-blue {
     background: radial-gradient(ellipse at center, hsl(93 83% 42% / 0.08) 0%, transparent 70%);
+  }
+
+  /* Safe area para margens seguras em mobile/PWA */
+  .safe-area-pb {
+    padding-bottom: env(safe-area-inset-bottom, 0);
+  }
+  .safe-area-pt {
+    padding-top: env(safe-area-inset-top, 0);
+  }
+  .safe-area-pl {
+    padding-left: env(safe-area-inset-left, 0);
+  }
+  .safe-area-pr {
+    padding-right: env(safe-area-inset-right, 0);
+  }
+  .min-h-screen-safe {
+    min-height: 100vh;
+    min-height: 100dvh;
   }
 }

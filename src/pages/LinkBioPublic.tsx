@@ -84,7 +84,12 @@ const LinkBioPublic = () => {
   }
 
   const colors: ThemeColors = (config.theme_colors as unknown as ThemeColors) || { primary: '#F59E0B', background: '#0F172A', text: '#FFFFFF', cardBg: '#1E293B' };
-  const links: LinkItem[] = (config.links as unknown as LinkItem[]) || [];
+  const rawLinks = (config.links as unknown as LinkItem[] | null | undefined) || [];
+  const links: LinkItem[] = rawLinks.map((l) => ({
+    id: String(l?.id ?? ''),
+    title: String(l?.title ?? ''),
+    url: String(l?.url ?? '').trim(),
+  })).filter((l) => l.title || l.url);
   const social: SocialLinks = (config.social_links as unknown as SocialLinks) || {};
   const template = config.template || 'dark';
 
@@ -101,19 +106,16 @@ const LinkBioPublic = () => {
     }
   };
 
-  const normalizeLinkUrl = (url: string): string => {
-    const u = (url || '').trim();
-    if (!u) return '#';
+  /** Monta a URL absoluta para abrir no clique — usa origin no momento do clique para evitar 404. */
+  const getLinkHref = (url: string | null | undefined): string => {
+    const u = String(url ?? '').trim();
+    if (!u) return '';
     if (u.startsWith('http://') || u.startsWith('https://')) return u;
-    if (u.startsWith('/')) {
-      const origin = typeof window !== 'undefined' ? window.location.origin : '';
-      return origin ? `${origin}${u}` : u;
-    }
     const firstSegment = u.split('/')[0];
-    const looksLikeDomain = firstSegment.includes('.');
-    if (looksLikeDomain) return `https://${u}`;
-    const origin = typeof window !== 'undefined' ? window.location.origin : '';
-    return origin ? `${origin}/${u}` : `/${u}`;
+    if (firstSegment.includes('.')) return `https://${u}`;
+    const path = u.startsWith('/') ? u : `/${u.replace(/^\//, '')}`;
+    if (typeof window === 'undefined') return path;
+    return `${window.location.origin}${path}`;
   };
 
   const bgStyle: React.CSSProperties = template === 'gradient'
@@ -149,16 +151,23 @@ const LinkBioPublic = () => {
             <p className="text-sm text-center mt-2 max-w-xs opacity-80">{config.bio}</p>
           )}
 
-          {/* Links */}
+          {/* Links — cada botão abre o site/URL que o usuário colocou em "Meus links" */}
           <div className="w-full mt-8 space-y-3">
-            {links.filter(l => l.title && l.url).map(link => {
-              const href = normalizeLinkUrl(link.url);
+            {links.filter((l) => l.title && l.url).map((link) => {
+              const rawUrl = link.url;
+              const handleClick = (e: React.MouseEvent) => {
+                e.preventDefault();
+                const urlToOpen = getLinkHref(rawUrl);
+                if (urlToOpen) window.open(urlToOpen, '_blank', 'noopener,noreferrer');
+              };
+              const href = getLinkHref(rawUrl) || '#';
               return (
                 <a
                   key={link.id}
                   href={href}
                   target="_blank"
                   rel="noopener noreferrer"
+                  onClick={handleClick}
                   className="block w-full py-3.5 px-5 rounded-xl text-center font-medium text-sm transition-all hover:scale-[1.03] hover:shadow-lg"
                   style={{
                     background: colors.cardBg,

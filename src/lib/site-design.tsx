@@ -10,6 +10,7 @@ export interface SiteDesignConfig {
   secondary_color: string | null;
   accent_color: string | null;
   sidebar_primary_color: string | null;
+  coming_soon_enabled: boolean | null;
   updated_at: string;
 }
 
@@ -22,6 +23,7 @@ const DEFAULT_CONFIG: SiteDesignConfig = {
   secondary_color: '#e8f5e0',
   accent_color: '#58c411',
   sidebar_primary_color: '#58c411',
+  coming_soon_enabled: false,
   updated_at: '',
 };
 
@@ -58,11 +60,11 @@ interface SiteDesignContextType {
   config: SiteDesignConfig;
   loading: boolean;
   logoUrl: string;
-  /** Nome do site para exibição; vazio se o admin deixou em branco (mostrar só a logo maior) */
   siteName: string;
-  /** Nome para título da página e alt text; nunca vazio */
   siteNameFallback: string;
   faviconUrl: string | null;
+  /** Quando true, o site exibe apenas a página "Em breve" para visitantes (exceto /admin) */
+  comingSoonEnabled: boolean;
   refetch: () => Promise<void>;
 }
 
@@ -73,6 +75,7 @@ const SiteDesignContext = createContext<SiteDesignContextType>({
   siteName: 'Hilinkr',
   siteNameFallback: 'Hilinkr',
   faviconUrl: null,
+  comingSoonEnabled: false,
   refetch: async () => {},
 });
 
@@ -104,6 +107,7 @@ export function SiteDesignProvider({ children }: { children: ReactNode }) {
   const siteName = config.site_name?.trim() ?? '';
   const siteNameFallback = siteName || 'Hilinkr';
   const faviconUrl = config.favicon_url?.trim() || null;
+  const comingSoonEnabled = config.coming_soon_enabled === true;
 
   useEffect(() => {
     if (loading) return;
@@ -152,8 +156,9 @@ export function SiteDesignProvider({ children }: { children: ReactNode }) {
     siteName,
     siteNameFallback,
     faviconUrl,
+    comingSoonEnabled,
     refetch: fetchConfig,
-  }), [config, loading, logoUrl, siteName, siteNameFallback, faviconUrl]);
+  }), [config, loading, logoUrl, siteName, siteNameFallback, faviconUrl, comingSoonEnabled]);
 
   return (
     <SiteDesignContext.Provider value={value}>
