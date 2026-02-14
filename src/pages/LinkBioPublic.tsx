@@ -105,8 +105,15 @@ const LinkBioPublic = () => {
     const u = (url || '').trim();
     if (!u) return '#';
     if (u.startsWith('http://') || u.startsWith('https://')) return u;
-    if (u.startsWith('/')) return u;
-    return `https://${u}`;
+    if (u.startsWith('/')) {
+      const origin = typeof window !== 'undefined' ? window.location.origin : '';
+      return origin ? `${origin}${u}` : u;
+    }
+    const firstSegment = u.split('/')[0];
+    const looksLikeDomain = firstSegment.includes('.');
+    if (looksLikeDomain) return `https://${u}`;
+    const origin = typeof window !== 'undefined' ? window.location.origin : '';
+    return origin ? `${origin}/${u}` : `/${u}`;
   };
 
   const bgStyle: React.CSSProperties = template === 'gradient'
